@@ -42,21 +42,46 @@ final class StringPool(val in : FileInputStream)
   /**
    * returns the string, that should be used
    */
-  def add(string : String) : String = {
-    ???
+  def add(result : String) : String = {
+    knownStrings.find(_.equals(result)).getOrElse {
+      knownStrings.add(result)
+      result
+    }
   }
 
+  /**
+   * search a string by id it had inside of the read file, may block if the string has not yet been read
+   */
   def get(index : SkillID) : String = {
-    ???
+    if (index <= 0) null
+    else {
+      var result = idMap(index)
+      if (null == result) {
+        this.synchronized {
+          // read result
+          val off = stringPositions(index.toInt)
+          in.push(off._1)
+          var chars = in.bytes(off._2)
+          in.pop
+          result = new String(chars, "UTF-8")
 
-    //    if read add to known String and drop, if required
+          // unify string and mark it read
+          result = knownStrings.find(_.equals(result)).getOrElse {
+            knownStrings.add(result)
+            result
+          }
+
+          idMap(index.toInt) = result
+          result
+        }
+      } else
+        result
+    }
   }
 
   def iterator : Iterator[String] = knownStrings.iterator
 
-  def read(in : MappedInStream) : String = {
-    ???
-  }
+  def read(in : MappedInStream) : String = get(in.v64.toInt)
 
   def offset(target : String) : Long = {
     ???
