@@ -14,15 +14,16 @@ import de.ust.skill.common.scala.internal.fieldTypes.V64
 /**
  * @author Timm Felden
  */
-sealed abstract class StoragePool[T <: B, B <: SkillObject](_typeID : Int)
+sealed abstract class StoragePool[T <: B, B <: SkillObject](
+  final val name : String,
+  final val superPool : StoragePool[_ >: T <: B, B],
+  _typeID : Int)
     extends UserType[T](_typeID) with Access[T] {
 
   /**
    * the index of this inside of the enclosing states types array
    */
   def poolIndex = typeID - 32
-
-  ???
 
   def all : Iterator[T] = {
     ???
@@ -44,15 +45,19 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](_typeID : Int)
     ???
   }
 
-  val name : String = ???
+  val superName : Option[String] =
+    if (null == superPool) None
+    else Some(superPool.name)
 
-  val superName : Option[String] = ???
+  /**
+   * the base pool of this type hierarchy
+   */
+  def basePool : BasePool[B]
 
-  def superPool : StoragePool[_ >: T <: B, B] = ???
-
-  def basePool : BasePool[B] = ???
-
-  def blocks : ArrayBuffer[Block] = ???
+  /**
+   * the blocks that this type is involved in
+   */
+  val blocks = ArrayBuffer[Block]()
 
   /**
    * the cached dynamic size of this pool. Reliable if fixed, used by parser and writers.
@@ -65,7 +70,10 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](_typeID : Int)
    */
   var fixed = false
 
-  def dataFields : ArrayBuffer[FieldDeclaration[_]] = ???
+  /**
+   * static fields of this type taking part in serialization
+   */
+  private[internal] val dataFields = ArrayBuffer[FieldDeclaration[_]]()
 
   def addField(fieldID : Int, t : FieldType[_], name : String) : FieldDeclaration[_] = ???
 
@@ -78,14 +86,21 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](_typeID : Int)
   def write(target : T, out : MappedOutStream) : Unit = out.v64(target.skillID)
 }
 
-class BasePool[B <: SkillObject](_typeID : Int) extends StoragePool[B, B](_typeID) {
-  def getById(id: SkillID): B = {
+class BasePool[B <: SkillObject](_name : String, _typeID : Int) extends StoragePool[B, B](_name, null, _typeID) {
+
+  final override def basePool : BasePool[B] = this
+
+  def getById(id : SkillID) : B = {
     ???
   }
 }
 
-class SubPool[T <: B, B <: SkillObject](_typeID : Int) extends StoragePool[T, B](_typeID) {
-  def getById(id: SkillID): T = {
+class SubPool[T <: B, B <: SkillObject](_name : String, _superPool : StoragePool[_ >: T <: B, B], _typeID : Int)
+    extends StoragePool[T, B](_name, _superPool, _typeID) {
+
+  final override val basePool = superPool.basePool
+
+  def getById(id : SkillID) : T = {
     ???
   }
 
