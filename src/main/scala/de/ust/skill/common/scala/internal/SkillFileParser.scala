@@ -205,7 +205,7 @@ trait SkillFileParser[SF <: SkillState] {
           val block = p.blocks.last
           for (i ← 0 until e.count) {
             val id = in.v64.toInt
-            if (0 <= id || legalFieldIDBarrier < id)
+            if (id <= 0 || legalFieldIDBarrier < id)
               throw ParseException(in, blockCounter, s"Found an illegal field ID: $id")
 
             var endOffset : Long = 0
