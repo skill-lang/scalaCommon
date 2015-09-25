@@ -54,6 +54,9 @@ trait StringAccess extends Iterable[String] with FieldType[String] {
    * adds a string to the pool; using the result instead of the argument may improve overall performance
    */
   def add(string : String) : String
+  /**
+   * @note the iterator will not cause lazy strings to be unpacked!
+   */
   def iterator : Iterator[String]
   def size : Int
 }

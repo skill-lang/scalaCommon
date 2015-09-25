@@ -13,8 +13,8 @@ import de.ust.skill.common.scala.SkillID
  *       written.
  *
  * @param the index of the block inside of the file
- * @param bpo offset of the block inside of the respective block
+ * @param bpo absolute offset relative to base pools first index, because this is required almost always
  * @param staticCount is a var, because the number of static instances can only be known after the sub type has been
  * read
  */
-final case class Blocks(val blockIndex : Int, val bpo : SkillID, var staticCount : SkillID, val dynamicCount : SkillID);
+final case class Block(val blockIndex : Int, val bpo : SkillID, var staticCount : SkillID, val dynamicCount : SkillID);

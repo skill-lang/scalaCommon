@@ -1,15 +1,20 @@
 package de.ust.skill.common.scala.internal
 
-import de.ust.skill.common.scala.api.StringAccess
-import de.ust.skill.common.scala.SkillID
-import de.ust.skill.common.jvm.streams.FileInputStream
-import scala.collection.mutable.HashSet
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashSet
+
+import de.ust.skill.common.jvm.streams.FileInputStream
+import de.ust.skill.common.jvm.streams.MappedInStream
+import de.ust.skill.common.jvm.streams.MappedOutStream
+import de.ust.skill.common.scala.SkillID
+import de.ust.skill.common.scala.api.StringAccess
+import de.ust.skill.common.scala.internal.fieldTypes.StringType
 
 /**
  * @author Timm Felden
  */
-class StringPool(val in : FileInputStream) extends StringAccess {
+final class StringPool(val in : FileInputStream)
+    extends StringType with StringAccess {
   /**
    * the set of known strings, including new strings
    *
@@ -43,15 +48,23 @@ class StringPool(val in : FileInputStream) extends StringAccess {
 
   def get(index : SkillID) : String = {
     ???
-    
-//    if read add to known String and drop, if required
+
+    //    if read add to known String and drop, if required
   }
 
-  def iterator : Iterator[String] = {
+  def iterator : Iterator[String] = knownStrings.iterator
+
+  def read(in : MappedInStream) : String = {
     ???
   }
 
-  def typeID : Int = {
+  def offset(target : String) : Long = {
     ???
   }
+
+  def write(target : String, out : MappedOutStream) : Unit = {
+    ???
+  }
+
+  final override def toString = "string"
 }

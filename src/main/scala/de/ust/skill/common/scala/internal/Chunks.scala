@@ -1,4 +1,4 @@
-package de.ust.skill.common.scala.api
+package de.ust.skill.common.scala.internal
 
 import de.ust.skill.common.scala.SkillID
 

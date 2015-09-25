@@ -26,7 +26,7 @@ final case class TypeSystemError(msg : String) extends SkillException(msg);
  *
  * @author Timm Felden
  */
-final case class ParseException(in : InStream, block : Int, cause : Throwable, msg : String) extends SkillException(
+final case class ParseException(in : InStream, block : Int, msg : String, cause : Throwable = null) extends SkillException(
   s"In block ${block + 1} @0x${in.position.toHexString}: $msg",
   cause
 );

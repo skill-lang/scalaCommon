@@ -40,12 +40,12 @@ class SkillState(
   /**
  * types stored in this file
  */
-  protected[internal] val types : ArrayBuffer[Access[_ <: SkillObject]],
+  protected[internal] val types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
 
   /**
  * types by skill name
  */
-  protected[internal] val typesByName : HashMap[String, Access[_ <: SkillObject]])
+  protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
     extends SkillFile {
 
   /**
