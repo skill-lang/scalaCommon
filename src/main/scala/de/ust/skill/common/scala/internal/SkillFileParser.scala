@@ -37,25 +37,25 @@ trait SkillFileParser[SF <: SkillState] {
    *
    * @note the type parameters are a bold lie that keeps the type checker happy
    */
-  def read[T <: B, B <: SkillObject](in : FileInputStream, mode : WriteMode) : SF = {
+  final def read[T <: B, B <: SkillObject](in : FileInputStream, mode : WriteMode) : SF = {
     // ERROR DETECTION
     var blockCounter = 0;
-    var seenTypes = HashSet[String]();
+    var seenTypes = new HashSet[String]();
     // this barrier is strictly increasing inside of each block and reset to 0 at the beginning of each block
     var blockIDBarrier : Int = 0;
 
     // PARSE STATE
     val String = new StringPool(in)
-    val types = ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]]()
-    val typesByName = HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]]()
+    val types = new ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]]()
+    val typesByName = new HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]]()
     val Annotation = new AnnotationType(types, typesByName)
-    val dataList = ArrayBuffer[MappedInStream]()
+    val dataList = new ArrayBuffer[MappedInStream]()
 
     /**
      * Turns a field type into a preliminary type information. In case of user types, the declaration of the respective
      *  user type may follow after the field declaration.
      */
-    @inline def parseFieldType : FieldType[_] = in.v64 match {
+    def parseFieldType : FieldType[_] = in.v64 match {
       case 0  ⇒ ConstantI8(in.i8)
       case 1  ⇒ ConstantI16(in.i16)
       case 2  ⇒ ConstantI32(in.i32)
@@ -89,15 +89,19 @@ trait SkillFileParser[SF <: SkillState] {
 
         if (0 != count) {
           val offsets = new Array[Int](count);
-          for (i ← 0 until count) {
+          var i = 0
+          while (i < count) {
             offsets(i) = in.i32;
+            i += 1
           }
           String.stringPositions.sizeHint(String.stringPositions.size + count)
           var last = 0
-          for (i ← 0 until count) {
-            String.stringPositions.append((in.position + last, offsets(i) - last))
+          i = 0
+          while (i < count) {
+            String.stringPositions.append(new StringPosition(in.position + last, offsets(i) - last))
             String.idMap += null
             last = offsets(i)
+            i += 1
           }
           in.jump(in.position + last);
         }
@@ -109,7 +113,7 @@ trait SkillFileParser[SF <: SkillState] {
 
       // type block
       try {
-        val typeCount = in.v64.toInt
+        var typeCount = in.v64.toInt
 
         // reset counters and queues
         seenTypes.clear
@@ -119,7 +123,8 @@ trait SkillFileParser[SF <: SkillState] {
         val localFields = new ArrayBuffer[LFEntry](typeCount)
 
         // parse type definitions
-        for (i ← 0 until typeCount) {
+        while (typeCount != 0) {
+          typeCount -= 1
           val name = String.get(in.v64.toInt)
 
           // check null name
@@ -136,7 +141,9 @@ trait SkillFileParser[SF <: SkillState] {
           val definition = typesByName.get(name).getOrElse {
 
             // type restrictions
-            for (i ← 0 until in.v64.toInt) {
+            var restrictionCount = in.v64.toInt
+            while (restrictionCount != 0) {
+              restrictionCount -= 1
               ???
             }
 
@@ -179,6 +186,7 @@ trait SkillFileParser[SF <: SkillState] {
         }
 
         // resize pools, i.e. update cachedSize and staticCount
+        // TODO .par?
         for (i ← 0 until resizeQueue.size) {
           val p = resizeQueue(i)
           val b = p.blocks.last
@@ -199,11 +207,15 @@ trait SkillFileParser[SF <: SkillState] {
         var dataEnd = fileOffset
 
         // parse fields
-        for (e ← localFields) {
+        val es = localFields.iterator
+        while (es.hasNext) {
+          val e = es.next()
           val p = e.pool
           var legalFieldIDBarrier = 1 + p.dataFields.size
           val block = p.blocks.last
-          for (i ← 0 until e.count) {
+          var localFieldCount = e.count
+          while (0 != localFieldCount) {
+            localFieldCount -= 1
             val id = in.v64.toInt
             if (id <= 0 || legalFieldIDBarrier < id)
               throw ParseException(in, blockCounter, s"Found an illegal field ID: $id")
@@ -219,7 +231,9 @@ trait SkillFileParser[SF <: SkillState] {
               val t = parseFieldType
 
               // parse field restrictions
-              for (i ← 0 until in.v64.toInt) {
+              var fieldRestrictionCount = in.v64.toInt
+              while (fieldRestrictionCount != 0) {
+                fieldRestrictionCount -= 1
                 ???
               }
               endOffset = in.v64

@@ -32,7 +32,7 @@ final class StringPool(val in : FileInputStream)
    *
    * @note there is a fake entry at ID 0
    */
-  private[internal] var stringPositions = ArrayBuffer[(Long, Int)]((-1L, -1));
+  private[internal] var stringPositions = ArrayBuffer[StringPosition](new StringPosition(-1L, -1));
 
   /**
    * get string by ID
@@ -60,8 +60,8 @@ final class StringPool(val in : FileInputStream)
         this.synchronized {
           // read result
           val off = stringPositions(index.toInt)
-          in.push(off._1)
-          var chars = in.bytes(off._2)
+          in.push(off.absoluteOffset)
+          var chars = in.bytes(off.length)
           in.pop
           result = new String(chars, "UTF-8")
 
@@ -93,3 +93,9 @@ final class StringPool(val in : FileInputStream)
 
   final override def toString = "string"
 }
+
+/**
+ * Used to get rid of position tuple.
+ * @author Timm Felden
+ */
+final case class StringPosition(val absoluteOffset : Long, val length : Int);
