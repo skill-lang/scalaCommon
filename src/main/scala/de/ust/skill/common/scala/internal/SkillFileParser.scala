@@ -34,15 +34,11 @@ trait SkillFileParser[SF <: SkillState] {
 
   /**
    * read a state from file
-   *
-   * @note the type parameters are a bold lie that keeps the type checker happy
    */
-  final def read[T <: B, B <: SkillObject](in : FileInputStream, mode : WriteMode) : SF = {
+  final def read(in : FileInputStream, mode : WriteMode) : SF = {
     // ERROR DETECTION
     var blockCounter = 0;
-    var seenTypes = new HashSet[String]();
-    // this barrier is strictly increasing inside of each block and reset to 0 at the beginning of each block
-    var blockIDBarrier : Int = 0;
+    val seenTypes = new HashSet[String]();
 
     // PARSE STATE
     val String = new StringPool(in)
@@ -83,6 +79,7 @@ trait SkillFileParser[SF <: SkillState] {
 
     // process stream
     while (!in.eof) {
+
       // string block
       try {
         val count = in.v64.toInt;
@@ -114,6 +111,9 @@ trait SkillFileParser[SF <: SkillState] {
       // type block
       try {
         var typeCount = in.v64.toInt
+
+        // this barrier is strictly increasing inside of each block and reset to 0 at the beginning of each block
+        var blockIDBarrier : Int = 0;
 
         // reset counters and queues
         seenTypes.clear
@@ -171,12 +171,20 @@ trait SkillFileParser[SF <: SkillState] {
             r
           }
 
-          //note to self: we still need a block
+          if (blockIDBarrier < definition.typeID)
+            blockIDBarrier = definition.typeID;
+          else
+            throw new ParseException(in, blockCounter,
+              s"Found unordered type block. Type $name has id ${definition.typeID}, barrier was $blockIDBarrier.");
 
-          val lbpo = if (0 != count && null != definition.superPool)
+          // in contrast to prior implementation, bpo is the position inside of data, even if there are no actual
+          // instances. We need this behavior, because that way we can cheaply calculate the number of static instances
+          val lbpo = if (null == definition.superPool)
+            0
+          else if (0 != count)
             in.v64().toInt
           else
-            0
+            definition.superPool.blocks.last.bpo
 
           // static count and cached size are updated in the resize phase
           definition.blocks.append(Block(blockCounter, definition.basePool.cachedSize + lbpo, count, count))
@@ -199,6 +207,8 @@ trait SkillFileParser[SF <: SkillState] {
             if (q.superPool == p)
               b.staticCount = q.blocks.last.bpo - b.bpo
           }
+
+          p.staticDataInstnaces += b.staticCount
         }
 
         // track offset information, so that we can create the block maps and jump to the next block directly after
@@ -257,7 +267,7 @@ trait SkillFileParser[SF <: SkillState] {
       }
 
       blockCounter += 1
-      seenTypes = HashSet()
+      seenTypes.clear()
     }
 
     // note there still isn't a single instance

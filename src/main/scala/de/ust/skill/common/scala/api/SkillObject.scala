@@ -62,7 +62,7 @@ abstract class SkillObject(protected var _skillID : SkillID) {
  * @author Timm Felden
  */
 trait UnknownObject[T <: SkillObject] extends SkillObject {
-  def owner : Access[T]
+  def owner : Access[_ <: T]
 }
 
 /**

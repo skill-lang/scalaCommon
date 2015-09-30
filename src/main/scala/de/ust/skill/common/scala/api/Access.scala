@@ -6,7 +6,7 @@ import de.ust.skill.common.scala.SkillID
 /**
  * @author Timm Felden
  */
-trait Access[T <: SkillObject] extends Iterable[T] with FieldType[T] {
+trait Access[T <: SkillObject] extends IndexedSeq[T] with FieldType[T] {
   /**
    * the SKilL name of T
    */
@@ -22,7 +22,7 @@ trait Access[T <: SkillObject] extends Iterable[T] with FieldType[T] {
    *
    * @note in general this is unrelated to the skill id of the object
    */
-  def get(index : SkillID) : String
+  def apply(index : Int) : T
 
   /**
    * @return iterator over all instances of T
@@ -42,7 +42,7 @@ trait Access[T <: SkillObject] extends Iterable[T] with FieldType[T] {
    */
   def allFields : Iterator[FieldDeclaration[_]]
 
-  override def size : Int
+  override def length : Int
   override def foreach[U](f : T ⇒ U) : Unit
   override def toArray[B >: T : ClassTag] : Array[B]
 }

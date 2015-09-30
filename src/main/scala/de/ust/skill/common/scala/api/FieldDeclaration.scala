@@ -20,4 +20,9 @@ trait FieldDeclaration[@specialized T] {
    * @note known fields provide .get methods that are generally faster, because they exist without boxing
    */
   def setR(i : SkillObject, v : T) : Unit;
+
+  /**
+   * pretty to string method
+   */
+  override def toString : String = s"$t $name"
 }

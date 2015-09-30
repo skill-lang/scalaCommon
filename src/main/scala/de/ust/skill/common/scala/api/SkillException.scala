@@ -1,6 +1,7 @@
 package de.ust.skill.common.scala.api
 
 import de.ust.skill.common.jvm.streams.InStream
+import de.ust.skill.common.scala.internal
 
 /**
  * Top level skill exception class.
@@ -26,7 +27,22 @@ final case class TypeSystemError(msg : String) extends SkillException(msg);
  *
  * @author Timm Felden
  */
-final case class ParseException(in : InStream, block : Int, msg : String, cause : Throwable = null) extends SkillException(
-  s"In block ${block + 1} @0x${in.position.toHexString}: $msg",
-  cause
-);
+final case class ParseException(in : InStream, block : Int, msg : String, cause : Throwable = null)
+  extends SkillException(
+    s"In block ${block + 1} @0x${in.position.toHexString}: $msg",
+    cause
+  );
+
+/**
+ * Thrown, if field deserialization consumes more or less bytes then specified by the header.
+ *
+ * @author Timm Felden
+ */
+case class PoolSizeMissmatchError(
+  block : Int,
+  begin : Long,
+  end : Long,
+  field : internal.FieldDeclaration[_, _ <: SkillObject])
+    extends SkillException(
+      s"""Corrupted data chunk in block ${block + 1} between 0x${begin.toHexString} and 0x${end.toHexString}
+ Field ${field.owner.name}.${field.name} of type: ${field.t.toString}""")
