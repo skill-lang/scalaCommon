@@ -50,13 +50,24 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
 }
 
 /**
- * This trait marks auto fields, i.e. fields that wont be touched by serialization.
+ * This class marks known fields.
  */
-abstract class AutoField[T, Obj <: SkillObject](_t : FieldType[T],
-                                                _name : String,
-                                                _index : Int,
-                                                _owner : StoragePool[Obj, _ >: Obj <: SkillObject])
-    extends FieldDeclaration[T, Obj](_t, _name, _index, _owner) {
+abstract class KnownField[T, Obj <: SkillObject](
+  _t : FieldType[T],
+  _name : String,
+  _index : Int,
+  _owner : StoragePool[Obj, _ >: Obj <: SkillObject]) extends FieldDeclaration[T, Obj](_t, _name, _index, _owner);
+
+/**
+ * This trait marks auto fields, i.e. fields that wont be touched by serialization.
+ * @note an auto field must be known
+ */
+abstract class AutoField[T, Obj <: SkillObject](
+  _t : FieldType[T],
+  _name : String,
+  _index : Int,
+  _owner : StoragePool[Obj, _ >: Obj <: SkillObject])
+    extends KnownField[T, Obj](_t, _name, _index, _owner) {
 
   final override def read(in : MappedInStream, target : Chunk) : Unit = throw new NoSuchMethodError("one can not read auto fields!")
   final override def offset = throw new NoSuchMethodError("one can not write auto fields!")
@@ -66,8 +77,7 @@ abstract class AutoField[T, Obj <: SkillObject](_t : FieldType[T],
 /**
  * This trait marks ignored fields.
  */
-trait IgnoredField[T, Obj <: SkillObject] extends FieldDeclaration[T, Obj] {
-}
+trait IgnoredField[T, Obj <: SkillObject] extends FieldDeclaration[T, Obj];
 
 /**
  * The fields data is distributed into an array (for now its a hash map) holding its instances.

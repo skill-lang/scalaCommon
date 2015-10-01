@@ -11,6 +11,7 @@ import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.WriteMode
 import de.ust.skill.common.scala.internal.fieldTypes._
 import de.ust.skill.common.jvm.streams.MappedInStream
+import java.util.concurrent.Semaphore
 
 /**
  * @author Timm Felden
@@ -273,4 +274,57 @@ trait SkillFileParser[SF <: SkillState] {
     // note there still isn't a single instance
     makeState(in.path(), mode, String, Annotation, types, typesByName, dataList)
   }
+
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  /**
+   * has to be called by make state after instances have been allocated
+   */
+  final def triggerFieldDeserialization(
+    types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
+    dataList : ArrayBuffer[MappedInStream]) {
+    val barrier = new ReadBarrier
+    val ts = types.iterator
+    while (ts.hasNext) {
+      val t = ts.next
+      var fieldIndex = t.dataFields.size
+      while (0 != fieldIndex) {
+        fieldIndex -= 1
+        val f = t.dataFields(fieldIndex)
+        var blockIndex = 0
+        f.dataChunks.foreach {
+          case target : BulkChunk ⇒
+            blockIndex = target.blockCount
+            if (target.count != 0)
+              global.execute(new Job(barrier, f, dataList(blockIndex), target))
+
+          case target : SimpleChunk ⇒
+            blockIndex += 1
+            if (target.count != 0)
+              global.execute(new Job(barrier, f, dataList(blockIndex), target))
+        }
+      }
+    }
+
+    barrier.await
+  }
+}
+
+final class Job(
+    val barrier : ReadBarrier,
+    val field : FieldDeclaration[_, _],
+    val in : MappedInStream,
+    val target : Chunk) extends Runnable {
+
+  override def run {
+    barrier.begin
+    field.read(in, target)
+    barrier.end
+  }
+}
+
+final class ReadBarrier extends Semaphore(1) {
+  def begin = reducePermits(1)
+  def end = release(1)
+  def await = acquire(1)
 }

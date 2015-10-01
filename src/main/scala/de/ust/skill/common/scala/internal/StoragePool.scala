@@ -116,7 +116,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   /**
    * static fields of this type taking part in serialization
    */
-  private[internal] val dataFields = new ArrayBuffer[FieldDeclaration[_, T]]()
+  protected[internal] val dataFields = new ArrayBuffer[FieldDeclaration[_, T]]()
 
   /**
    * add a field to the pool, known fields are treated specially
