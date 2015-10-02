@@ -3,7 +3,7 @@ package de.ust.skill.common.scala.api
 /**
  * @author Timm Felden
  */
-trait FieldDeclaration[@specialized T] {
+abstract class FieldDeclaration[@specialized T] {
   def t : FieldType[T]
   def name : String
 

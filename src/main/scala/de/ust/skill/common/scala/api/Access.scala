@@ -40,6 +40,12 @@ trait Access[T <: SkillObject] extends IndexedSeq[T] with FieldType[T] {
   /**
    * @return an iterator over all field declarations, even those provided by the binary skill file
    */
+  def fields : Iterator[FieldDeclaration[_]]
+
+  /**
+   * @return an iterator over all field declarations, even those provided by the binary skill file, including fields
+   * declared in super types
+   */
   def allFields : Iterator[FieldDeclaration[_]]
 
   override def length : Int

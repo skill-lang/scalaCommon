@@ -12,6 +12,8 @@ import de.ust.skill.common.scala.api.Write
 import de.ust.skill.common.scala.api.WriteMode
 import de.ust.skill.common.scala.api.SkillObject
 import scala.collection.mutable.HashMap
+import de.ust.skill.common.scala.api.RestrictionCheckFailed
+import de.ust.skill.common.scala.api.SkillException
 
 /**
  * @author Timm Felden
@@ -48,11 +50,6 @@ class SkillState(
   protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
     extends SkillFile {
 
-  /**
-   * ensures that instances get allocated and all eager fields are read
-   */
-  final def finalizePools : Unit = ???
-
   final def changeMode(newMode : WriteMode) : Unit = {
     // pointless
     if (mode == newMode)
@@ -83,7 +80,13 @@ class SkillState(
   }
 
   def check : Unit = {
-    ???
+    // TODO a more efficient solution would be helpful
+    // TODO lacks type restrictions
+    // @note this should be more like, each pool is checking its type restriction, aggergating its field restrictions,
+    // and if there are any, then they will all be checked using (hopefully) overridden check methods
+    for (p ← types.par; f ← p.dataFields) try { f.check } catch {
+      case e : SkillException ⇒ throw RestrictionCheckFailed(s"check failed in ${p.name}.${f.name}:\n  ${e.getMessage}", e)
+    }
   }
 
   def flush : Unit = {
@@ -96,10 +99,4 @@ class SkillState(
   }
 
   def iterator : Iterator[Access[_ <: de.ust.skill.common.scala.api.SkillObject]] = types.iterator
-}
-
-object SkillState {
-  def open = {
-    ???
-  }
 }
