@@ -11,6 +11,10 @@ import scala.collection.mutable.WrappedArray
 import scala.collection.mutable.ListBuffer
 import java.nio.BufferUnderflowException
 import de.ust.skill.common.scala.api.PoolSizeMissmatchError
+import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
+import scala.collection.mutable.HashSet
+import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
+import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 
 /**
  * runtime representation of fields
@@ -27,6 +31,17 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
   private[internal] final val dataChunks = new ArrayBuffer[Chunk]
 
   @inline final def addChunk(c : Chunk) : Unit = dataChunks.append(c)
+
+  /**
+   * Restriction handling.
+   */
+  val restrictions = HashSet[FieldRestriction]();
+  def addRestriction(r : FieldRestriction) = restrictions += r
+  def check {
+    var rs = restrictions.collect { case r : CheckableFieldRestriction[T] ⇒ r }
+    if (!rs.isEmpty)
+      owner.foreach { x ⇒ rs.foreach(_.check(x.get(this))) }
+  }
 
   /**
    * Read data from a mapped input stream and set it accordingly. This is invoked at the very end of state
@@ -120,11 +135,11 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
     } catch {
       case e : BufferUnderflowException ⇒
         val lastPosition = in.position
-        throw new PoolSizeMissmatchError(dataChunks.size - 1, lastChunk.begin, lastChunk.end, this)
+        throw PoolSizeMissmatchError(dataChunks.size - 1, lastChunk.begin, lastChunk.end, this, lastPosition)
     }
     val lastPosition = in.position
     if (lastPosition - firstPosition != lastChunk.end - lastChunk.begin)
-      throw new PoolSizeMissmatchError(dataChunks.size - 1, lastChunk.begin, lastChunk.end, this)
+      throw PoolSizeMissmatchError(dataChunks.size - 1, lastChunk.begin, lastChunk.end, this, lastPosition)
   }
   override def offset : Long = ???
   override def write(out : MappedOutStream) : Unit = ???
@@ -170,7 +185,10 @@ class LazyField[T : Manifest, Obj <: SkillObject](
     }
 
     for (chunk ← dataChunks) {
-      val in = parts.head
+      val in = new MappedInStream(parts.head.asByteBuffer().duplicate())
+      val offset = in.position().toInt
+      in.asByteBuffer().position(offset + chunk.begin.toInt)
+      in.asByteBuffer().limit(offset + chunk.end.toInt)
       val firstPosition = in.position
       try {
         parts.remove(0)
@@ -193,11 +211,11 @@ class LazyField[T : Manifest, Obj <: SkillObject](
       } catch {
         case e : BufferUnderflowException ⇒
           val lastPosition = in.position
-          throw new PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this)
+          throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, lastPosition)
       }
       val lastPosition = in.position
       if (lastPosition - firstPosition != chunk.end - chunk.begin)
-        throw new PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this)
+        throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, lastPosition)
     }
   }
 

@@ -3,11 +3,15 @@ package de.ust.skill.common.scala.internal
 import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.CompletelyUnknownObject
 import de.ust.skill.common.scala.SkillID
+import de.ust.skill.common.scala.api.CompletelyUnknownObject
 
 /**
  * @author Timm Felden
  */
 final class UnknownBasePool(_name : String, _typeId : Int) extends BasePool[CompletelyUnknownObject](_name, _typeId) {
+
+  def getInstanceClass : Class[CompletelyUnknownObject] = classOf[CompletelyUnknownObject]
+
   def allocateData : Unit = data = new Array[CompletelyUnknownObject](cachedSize)
 
   def allocateInstances : Unit = {
@@ -26,6 +30,8 @@ final class UnknownBasePool(_name : String, _typeId : Int) extends BasePool[Comp
     _superPool : StoragePool[CompletelyUnknownObject, CompletelyUnknownObject],
     _typeId : Int)
       extends SubPool[CompletelyUnknownObject, CompletelyUnknownObject](_name, _superPool, _typeId) {
+    def getInstanceClass : Class[CompletelyUnknownObject] = classOf[CompletelyUnknownObject]
+
     def allocateInstances : Unit = {
       for (b ← blocks.par) {
         var i : SkillID = b.bpo

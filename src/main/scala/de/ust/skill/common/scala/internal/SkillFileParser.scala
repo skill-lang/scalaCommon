@@ -27,7 +27,8 @@ trait SkillFileParser[SF <: SkillState] {
   def newPool(
     typeId : Int,
     name : String,
-    superPool : StoragePool[_ <: SkillObject, _ <: SkillObject]) : StoragePool[_ <: SkillObject, _ <: SkillObject]
+    superPool : StoragePool[_ <: SkillObject, _ <: SkillObject],
+    rest : HashSet[restrictions.TypeRestriction]) : StoragePool[_ <: SkillObject, _ <: SkillObject]
 
   def makeState(path : Path,
                 mode : WriteMode,
@@ -147,9 +148,21 @@ trait SkillFileParser[SF <: SkillState] {
 
             // type restrictions
             var restrictionCount = in.v64.toInt
+            val rest = new HashSet[restrictions.TypeRestriction]
+            rest.sizeHint(restrictionCount)
             while (restrictionCount != 0) {
               restrictionCount -= 1
-              ???
+
+              rest += ((in.v64.toInt : @switch) match {
+                case 0 ⇒ restrictions.Unique
+                case 1 ⇒ restrictions.Singleton
+                case 2 ⇒ restrictions.Monotone
+                case 3 ⇒ restrictions.Abstract
+                case 5 ⇒ restrictions.DefaultTypeRestriction(in.v64.toInt)
+
+                case i ⇒ throw new ParseException(in, blockCounter,
+                  s"Found unknown field restriction $i. Please regenerate your binding, if possible.", null)
+              })
             }
 
             // super
@@ -169,8 +182,7 @@ trait SkillFileParser[SF <: SkillState] {
             }
 
             // allocate pool
-            // TODO add restrictions as parameter
-            val r = newPool(types.size + 32, name, superPool)
+            val r = newPool(types.size + 32, name, superPool, rest)
             types.append(r)
             typesByName.put(name, r)
             r
@@ -199,8 +211,7 @@ trait SkillFileParser[SF <: SkillState] {
         }
 
         // resize pools, i.e. update cachedSize and staticCount
-        // TODO .par?
-        for (i ← 0 until resizeQueue.size) {
+        for (i ← (0 until resizeQueue.size).par) {
           val p = resizeQueue(i)
           val b = p.blocks.last
           p.cachedSize += b.dynamicCount
@@ -247,14 +258,41 @@ trait SkillFileParser[SF <: SkillState] {
 
               // parse field restrictions
               var fieldRestrictionCount = in.v64.toInt
+              val rest = new HashSet[restrictions.FieldRestriction]
+              rest.sizeHint(fieldRestrictionCount)
               while (fieldRestrictionCount != 0) {
                 fieldRestrictionCount -= 1
-                ???
+
+                rest += ((in.v64.toInt : @switch) match {
+                  case 0 ⇒ restrictions.NonNull.theNonNull
+                  case 1 ⇒ restrictions.DefaultRestriction(t.read(in))
+                  case 3 ⇒ t match {
+                    case I8  ⇒ restrictions.Range(in.i8, in.i8)
+                    case I16 ⇒ restrictions.Range(in.i16, in.i16)
+                    case I32 ⇒ restrictions.Range(in.i32, in.i32)
+                    case I64 ⇒ restrictions.Range(in.i64, in.i64)
+                    case V64 ⇒ restrictions.Range(in.v64, in.v64)
+                    case F32 ⇒ restrictions.Range(in.f32, in.f32)
+                    case F64 ⇒ restrictions.Range(in.f64, in.f64)
+                    case t   ⇒ throw new ParseException(in, blockCounter, s"Type $t can not be range restricted!", null)
+                  }
+                  case 5 ⇒ restrictions.Coding(String.get(in.v64.toInt))
+                  case 7 ⇒ restrictions.ConstantLengthPointer
+                  case 9 ⇒ restrictions.OneOf((0 until in.v64.toInt).map(i ⇒
+                    parseFieldType match {
+                      case t : StoragePool[_, _] ⇒ t.getInstanceClass
+                      case t ⇒ throw new ParseException(in, blockCounter,
+                        s"Found a one of restrictions that tries to restrict to non user type $t.", null)
+                    }).toArray
+                  )
+                  case i ⇒ throw new ParseException(in, blockCounter,
+                    s"Found unknown field restriction $i. Please regenerate your binding, if possible.", null)
+                })
               }
               endOffset = in.v64
 
-              val f = p.addField(id, t, fieldName)
-              f.addChunk(new BulkChunk(dataEnd, endOffset, p.cachedSize, block.bpo))
+              val f = p.addField(id, t, fieldName, rest)
+              f.addChunk(new BulkChunk(dataEnd, endOffset, p.cachedSize, blockCounter))
             } else {
               // known field
               endOffset = in.v64

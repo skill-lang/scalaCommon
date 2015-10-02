@@ -4,7 +4,7 @@ import scala.collection.mutable.ArrayBuffer
 import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.internal.StoragePool
 import de.ust.skill.common.scala.api
-import de.ust.skill.common.jvm.streams.MappedInStream
+import de.ust.skill.common.jvm.streams.InStream
 import de.ust.skill.common.jvm.streams.MappedOutStream
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.ListBuffer
@@ -25,7 +25,7 @@ sealed abstract class FieldType[@specialized T](override val typeID : Int) exten
   /**
    * read a singe instance
    */
-  def read(in : MappedInStream) : T
+  def read(in : InStream) : T
 
   /**
    * offset of a single instance
@@ -47,7 +47,7 @@ sealed abstract class FieldType[@specialized T](override val typeID : Int) exten
 sealed abstract class ConstantInteger[T](_typeID : Int) extends FieldType[T](_typeID) {
   def value : T
 
-  final def read(in : MappedInStream) : T = value
+  final def read(in : InStream) : T = value
 
   final def offset(target : T) : Long = 0
 
@@ -95,7 +95,7 @@ final class AnnotationType(
   val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
     extends FieldType[SkillObject](5) {
 
-  override def read(in : MappedInStream) : SkillObject = {
+  override def read(in : InStream) : SkillObject = {
     val t = in.v64
     if (0 == t) {
       in.v64
@@ -120,7 +120,7 @@ final class AnnotationType(
 }
 
 final case object BoolType extends FieldType[Boolean](6) {
-  override def read(in : MappedInStream) = in.i8 != 0
+  override def read(in : InStream) = in.i8 != 0
 
   override def offset(target : Boolean) : Long = 1
 
@@ -132,7 +132,7 @@ final case object BoolType extends FieldType[Boolean](6) {
 sealed abstract class IntegerType[T](_typeID : Int) extends FieldType[T](_typeID);
 
 final case object I8 extends IntegerType[Byte](7) {
-  override def read(in : MappedInStream) = in.i8
+  override def read(in : InStream) = in.i8
   override def offset(target : Byte) : Long = 1
   override def write(target : Byte, out : MappedOutStream) : Unit = out.i8(target)
 
@@ -140,28 +140,28 @@ final case object I8 extends IntegerType[Byte](7) {
 }
 
 final case object I16 extends IntegerType[Short](8) {
-  override def read(in : MappedInStream) = in.i16
+  override def read(in : InStream) = in.i16
   override def offset(target : Short) : Long = 2
   override def write(target : Short, out : MappedOutStream) : Unit = out.i16(target)
 
   override def toString() : String = "i16"
 }
 final case object I32 extends IntegerType[Int](9) {
-  override def read(in : MappedInStream) = in.i32
+  override def read(in : InStream) = in.i32
   override def offset(target : Int) : Long = 4
   override def write(target : Int, out : MappedOutStream) : Unit = out.i32(target)
 
   override def toString() : String = "i32"
 }
 final case object I64 extends IntegerType[Long](10) {
-  override def read(in : MappedInStream) = in.i64
+  override def read(in : InStream) = in.i64
   override def offset(target : Long) : Long = 8
   override def write(target : Long, out : MappedOutStream) : Unit = out.i64(target)
 
   override def toString() : String = "i64"
 }
 final case object V64 extends IntegerType[Long](11) {
-  override def read(in : MappedInStream) = in.v64
+  override def read(in : InStream) = in.v64
   override def offset(v : Long) : Long = if (0L == (v & 0xFFFFFFFFFFFFFF80L)) {
     1L
   } else if (0L == (v & 0xFFFFFFFFFFFFC000L)) {
@@ -187,14 +187,14 @@ final case object V64 extends IntegerType[Long](11) {
 }
 
 final case object F32 extends FieldType[Float](12) {
-  override def read(in : MappedInStream) = in.f32
+  override def read(in : InStream) = in.f32
   override def offset(target : Float) : Long = 4
   override def write(target : Float, out : MappedOutStream) : Unit = out.f32(target)
 
   override def toString() : String = "f32"
 }
 final case object F64 extends FieldType[Double](13) {
-  override def read(in : MappedInStream) = in.f64
+  override def read(in : InStream) = in.f64
   override def offset(target : Double) : Long = 8
   override def write(target : Double, out : MappedOutStream) : Unit = out.f64(target)
 
@@ -225,7 +225,7 @@ sealed abstract class SingleBaseTypeContainer[T <: Iterable[Base], Base](_typeID
 final case class ConstantLengthArray[T](val length : Int, _groundType : FieldType[T])
     extends SingleBaseTypeContainer[ArrayBuffer[T], T](15, _groundType) {
 
-  override def read(in : MappedInStream) = (for (i ← 0 until length) yield groundType.read(in)).to
+  override def read(in : InStream) = (for (i ← 0 until length) yield groundType.read(in)).to
 
   override def offset(target : ArrayBuffer[T]) : Long = target.foldLeft(0L) { case (r, i) ⇒ r + groundType.offset(i) }
 
@@ -241,7 +241,7 @@ final case class ConstantLengthArray[T](val length : Int, _groundType : FieldTyp
 final case class VariableLengthArray[T](_groundType : FieldType[T])
     extends SingleBaseTypeContainer[ArrayBuffer[T], T](17, _groundType) {
 
-  override def read(in : MappedInStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
+  override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
   override def toString() : String = groundType+"[]"
   override def equals(obj : Any) = obj match {
@@ -253,7 +253,7 @@ final case class VariableLengthArray[T](_groundType : FieldType[T])
 final case class ListType[T](_groundType : FieldType[T])
     extends SingleBaseTypeContainer[ListBuffer[T], T](18, _groundType) {
 
-  override def read(in : MappedInStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
+  override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
   override def toString() : String = "list<"+groundType+">"
   override def equals(obj : Any) = obj match {
@@ -264,7 +264,7 @@ final case class ListType[T](_groundType : FieldType[T])
 final case class SetType[T](_groundType : FieldType[T])
     extends SingleBaseTypeContainer[HashSet[T], T](19, _groundType) {
 
-  override def read(in : MappedInStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
+  override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
   override def toString() : String = "set<"+groundType+">"
   override def equals(obj : Any) = obj match {
@@ -275,7 +275,7 @@ final case class SetType[T](_groundType : FieldType[T])
 final case class MapType[K, V](val keyType : FieldType[K], val valueType : FieldType[V])
     extends CompoundType[HashMap[K, V]](20) {
 
-  override def read(in : MappedInStream) : HashMap[K, V] = {
+  override def read(in : InStream) : HashMap[K, V] = {
     val size = in.v64.toInt
     val r = new HashMap[K, V]
     r.sizeHint(size)

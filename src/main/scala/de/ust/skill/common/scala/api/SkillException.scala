@@ -38,21 +38,53 @@ final case class ParseException(in : InStream, block : Int, msg : String, cause 
  *
  * @author Timm Felden
  */
-case class PoolSizeMissmatchError(
+final class PoolSizeMissmatchError(
   block : Int,
   begin : Long,
   end : Long,
-  field : internal.FieldDeclaration[_, _ <: SkillObject])
+  field : internal.FieldDeclaration[_, _ <: SkillObject],
+  last : Long)
     extends SkillException(
       s"""Corrupted data chunk in block ${block + 1} between 0x${begin.toHexString} and 0x${end.toHexString}
- Field ${field.owner.name}.${field.name} of type: ${field.t.toString}""")
-
+ Field ${field.owner.name}.${field.name} of type: ${field.t.toString}
+ Last position: ${last.toHexString}""")
+object PoolSizeMissmatchError {
+  def apply(
+    block : Int,
+    begin : Long,
+    end : Long,
+    field : internal.FieldDeclaration[_, _ <: SkillObject],
+    last : Long) = new PoolSizeMissmatchError(
+    block : Int,
+    begin : Long,
+    end : Long,
+    field : internal.FieldDeclaration[_, _ <: SkillObject],
+    last : Long)
+}
 
 /**
  * Thrown in case of a type miss-match on a field type.
  *
  * @author Timm Felden
  */
-case class TypeMissmatchError(t : FieldType[_], expected : String, fieldName : String, poolName : String)
+final class TypeMissmatchError(t : FieldType[_], expected : String, fieldName : String, poolName : String)
   extends SkillException(s"""During construction of $poolName.$fieldName.
 Encountered incompatible type "$t" (expected: $expected)""")
+object TypeMissmatchError {
+  def apply(
+    t : FieldType[_],
+    expected : String,
+    fieldName : String,
+    poolName : String) = new TypeMissmatchError(
+    t : FieldType[_],
+    expected : String,
+    fieldName : String,
+    poolName : String)
+}
+
+/**
+ * Thrown if a restriction fails its check.
+ *
+ * @author Timm Felden
+ */
+final case class RestrictionCheckFailed(msg : String, cause : Throwable = null) extends SkillException(msg, cause);

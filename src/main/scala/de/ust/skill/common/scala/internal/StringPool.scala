@@ -2,13 +2,13 @@ package de.ust.skill.common.scala.internal
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
-
 import de.ust.skill.common.jvm.streams.FileInputStream
 import de.ust.skill.common.jvm.streams.MappedInStream
 import de.ust.skill.common.jvm.streams.MappedOutStream
 import de.ust.skill.common.scala.SkillID
 import de.ust.skill.common.scala.api.StringAccess
 import de.ust.skill.common.scala.internal.fieldTypes.StringType
+import de.ust.skill.common.jvm.streams.InStream
 
 /**
  * @author Timm Felden
@@ -81,7 +81,7 @@ final class StringPool(val in : FileInputStream)
 
   def iterator : Iterator[String] = knownStrings.iterator
 
-  def read(in : MappedInStream) : String = get(in.v64.toInt)
+  def read(in : InStream) : String = get(in.v64.toInt)
 
   def offset(target : String) : Long = {
     ???

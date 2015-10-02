@@ -11,6 +11,9 @@ import de.ust.skill.common.scala.internal.fieldTypes.FieldType
 import de.ust.skill.common.scala.internal.fieldTypes.UserType
 import de.ust.skill.common.scala.internal.fieldTypes.V64
 import de.ust.skill.common.scala.SkillID
+import de.ust.skill.common.jvm.streams.InStream
+import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
+import scala.collection.mutable.HashSet
 
 /**
  * @author Timm Felden
@@ -20,6 +23,8 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   final val superPool : StoragePool[_ >: T <: B, B],
   _typeID : Int)
     extends UserType[T](_typeID) with Access[T] {
+
+  def getInstanceClass : Class[T]
 
   /**
    * the index of this inside of the enclosing states types array
@@ -33,9 +38,10 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 
   def allInTypeOrder : Iterator[T] = subPools.foldLeft(staticInstances)(_ ++ _.allInTypeOrder)
 
-  def allFields : Iterator[api.FieldDeclaration[_]] = {
-    ???
-  }
+  final def fields : Iterator[api.FieldDeclaration[_]] = autoFields.iterator ++ dataFields.iterator
+  final def allFields : Iterator[api.FieldDeclaration[_]] = if (null != superPool)
+    superPool.allFields ++ autoFields.iterator ++ dataFields.iterator
+  else fields
 
   def apply(index : Int) : T = {
     ???
@@ -102,7 +108,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   }
 
   @inline
-  protected def staticSize : SkillID = {
+  protected[internal] def staticSize : SkillID = {
     staticDataInstnaces + newObjects.length
   }
 
@@ -121,7 +127,10 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   /**
    * add a field to the pool, known fields are treated specially
    */
-  def addField[R : Manifest](fieldID : Int, t : FieldType[R], name : String) : FieldDeclaration[R, T] = {
+  def addField[R : Manifest](fieldID : Int,
+                             t : FieldType[R],
+                             name : String,
+                             restrictions : HashSet[FieldRestriction]) : FieldDeclaration[R, T] = {
     val f = new LazyField[R, T](t, name, fieldID, this);
     // TODO field restrictions
     //        for (FieldRestriction<?> r : restrictions)
@@ -163,7 +172,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    */
   def allocateInstances : Unit
 
-  final def read(in : MappedInStream) : T = getById(in.v64.toInt)
+  final def read(in : InStream) : T = getById(in.v64.toInt)
 
   final def offset(target : T) : Long = V64.offset(target.skillID)
 
@@ -185,6 +194,11 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * override to string, such that it produces skill types
    */
   final override def toString : String = name
+}
+
+object StoragePool {
+  val noTypeRestrictions = new HashSet[restrictions.TypeRestriction]
+  val noFieldRestrictions = new HashSet[restrictions.FieldRestriction]
 }
 
 abstract class BasePool[B <: SkillObject](_name : String, _typeID : Int) extends StoragePool[B, B](_name, null, _typeID) {
