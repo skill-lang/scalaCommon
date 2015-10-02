@@ -1,17 +1,21 @@
 package de.ust.skill.common.scala.internal
 
 import java.nio.file.Path
+import java.util.concurrent.Semaphore
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.annotation.switch
+
 import de.ust.skill.common.jvm.streams.FileInputStream
+import de.ust.skill.common.jvm.streams.MappedInStream
 import de.ust.skill.common.scala.api.ParseException
 import de.ust.skill.common.scala.api.SkillException
 import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.WriteMode
 import de.ust.skill.common.scala.internal.fieldTypes._
-import de.ust.skill.common.jvm.streams.MappedInStream
-import java.util.concurrent.Semaphore
 
 /**
  * @author Timm Felden
@@ -275,12 +279,10 @@ trait SkillFileParser[SF <: SkillState] {
     makeState(in.path(), mode, String, Annotation, types, typesByName, dataList)
   }
 
-  import scala.concurrent.ExecutionContext.Implicits.global
-
   /**
    * has to be called by make state after instances have been allocated
    */
-  final def triggerFieldDeserialization(
+  final protected def triggerFieldDeserialization(
     types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
     dataList : ArrayBuffer[MappedInStream]) {
     val barrier = new ReadBarrier
@@ -292,16 +294,18 @@ trait SkillFileParser[SF <: SkillState] {
         fieldIndex -= 1
         val f = t.dataFields(fieldIndex)
         var blockIndex = 0
-        f.dataChunks.foreach {
-          case target : BulkChunk ⇒
-            blockIndex = target.blockCount
-            if (target.count != 0)
-              global.execute(new Job(barrier, f, dataList(blockIndex), target))
-
-          case target : SimpleChunk ⇒
+        val dcs = f.dataChunks.iterator
+        while (dcs.hasNext) {
+          val dc = dcs.next
+          if (dc.isInstanceOf[BulkChunk]) {
+            blockIndex = dc.asInstanceOf[BulkChunk].blockCount
+            if (dc.count != 0)
+              global.execute(new Job(barrier, f, dataList(blockIndex), dc))
+          } else {
             blockIndex += 1
-            if (target.count != 0)
-              global.execute(new Job(barrier, f, dataList(blockIndex), target))
+            if (dc.count != 0)
+              global.execute(new Job(barrier, f, dataList(blockIndex), dc))
+          }
         }
       }
     }
