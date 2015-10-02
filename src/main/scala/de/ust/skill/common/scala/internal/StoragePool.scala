@@ -194,6 +194,23 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * override to string, such that it produces skill types
    */
   final override def toString : String = name
+
+  @inline
+  final override def foreach[U](f : T ⇒ U) {
+    for (
+      bs ← blocks;
+      i ← bs.bpo until bs.bpo + bs.dynamicCount
+    ) {
+      f(data(i))
+    }
+    foreachNewInstance(f)
+  }
+
+  @inline
+  final def foreachNewInstance[U](f : T ⇒ U) {
+    newObjects.foreach(f)
+    subPools.foreach(_.foreachNewInstance(f))
+  }
 }
 
 object StoragePool {
