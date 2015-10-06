@@ -15,6 +15,8 @@ import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import scala.collection.mutable.HashSet
 import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
+import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
+import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 
 /**
  * runtime representation of fields
@@ -28,7 +30,7 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
   final val owner : StoragePool[Obj, _ >: Obj <: SkillObject])
     extends api.FieldDeclaration[T] {
 
-  private[internal] final val dataChunks = new ArrayBuffer[Chunk]
+  protected[internal] final val dataChunks = new ArrayBuffer[Chunk]
 
   @inline final def addChunk(c : Chunk) : Unit = dataChunks.append(c)
 
@@ -92,7 +94,7 @@ abstract class AutoField[T, Obj <: SkillObject](
 /**
  * This trait marks ignored fields.
  */
-trait IgnoredField[T, Obj <: SkillObject] extends FieldDeclaration[T, Obj];
+trait IgnoredField[T, Obj <: SkillObject] extends KnownField[T, Obj];
 
 /**
  * The fields data is distributed into an array (for now its a hash map) holding its instances.
@@ -166,7 +168,7 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
  *
  * @note implementation abuses a distributed field that can be accessed iff there are no data chunks to be processed
  */
-class LazyField[T : Manifest, Obj <: SkillObject](
+final class LazyField[T : Manifest, Obj <: SkillObject](
   _t : FieldType[T],
   _name : String,
   _index : Int,
@@ -179,12 +181,12 @@ class LazyField[T : Manifest, Obj <: SkillObject](
 
   // executes pending read operations
   private def load {
-    val d = owner match {
-      case p : BasePool[Obj]   ⇒ p.data
-      case p : SubPool[Obj, _] ⇒ p.data
-    }
+    val d = owner.data
 
-    for (chunk ← dataChunks) {
+    var chunkIndex = 0
+    while (chunkIndex < dataChunks.size) {
+      val chunk = dataChunks(chunkIndex)
+      chunkIndex += 1
       val in = new MappedInStream(parts.head.asByteBuffer().duplicate())
       val offset = in.position().toInt
       in.asByteBuffer().position(offset + chunk.begin.toInt)
@@ -194,18 +196,24 @@ class LazyField[T : Manifest, Obj <: SkillObject](
         parts.remove(0)
         chunk match {
           case c : SimpleChunk ⇒
-            val low = c.bpo.toInt
-            val high = (c.bpo + c.count).toInt
-            for (i ← low until high) {
+            var i = c.bpo.toInt
+            val high = i + c.count
+            while (i != high) {
               data(d(i)) = t.read(in)
+              i += 1
             }
           case bci : BulkChunk ⇒
-            var count = bci.count;
-            for (
-              bi ← owner.blocks; if ({ count -= bi.dynamicCount; count >= 0 });
-              i ← bi.bpo.toInt until (bi.bpo + bi.dynamicCount).toInt
-            ) {
-              data(d(i)) = t.read(in)
+            val blocks = owner.blocks
+            var blockIndex = 1 + bci.blockCount
+            while (0 != blockIndex) {
+              blockIndex -= 1
+              val b = blocks(blockIndex)
+              var i = b.bpo
+              val end = i + b.dynamicCount
+              while (i != end) {
+                data(d(i)) = t.read(in)
+                i += 1
+              }
             }
         }
       } catch {
@@ -217,6 +225,14 @@ class LazyField[T : Manifest, Obj <: SkillObject](
       if (lastPosition - firstPosition != chunk.end - chunk.begin)
         throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, lastPosition)
     }
+  }
+
+  /**
+   * ensures that the data has been loaded from disk
+   */
+  def ensureIsLoaded {
+    if (!isLoaded)
+      load
   }
 
   override def read(part : MappedInStream, target : Chunk) {

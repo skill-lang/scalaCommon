@@ -8,7 +8,8 @@ import de.ust.skill.common.scala.api.CompletelyUnknownObject
 /**
  * @author Timm Felden
  */
-final class UnknownBasePool(_name : String, _typeId : Int) extends BasePool[CompletelyUnknownObject](_name, _typeId) {
+final class UnknownBasePool(_name : String, _typeId : Int)
+    extends BasePool[CompletelyUnknownObject](_typeId, _name, StoragePool.noKnownFields) {
 
   def getInstanceClass : Class[CompletelyUnknownObject] = classOf[CompletelyUnknownObject]
 
@@ -29,7 +30,10 @@ final class UnknownBasePool(_name : String, _typeId : Int) extends BasePool[Comp
     _name : String,
     _superPool : StoragePool[CompletelyUnknownObject, CompletelyUnknownObject],
     _typeId : Int)
-      extends SubPool[CompletelyUnknownObject, CompletelyUnknownObject](_name, _superPool, _typeId) {
+      extends SubPool[CompletelyUnknownObject, CompletelyUnknownObject](
+        _typeId, _name, _superPool, StoragePool.noKnownFields
+      ) {
+
     def getInstanceClass : Class[CompletelyUnknownObject] = classOf[CompletelyUnknownObject]
 
     def allocateInstances : Unit = {

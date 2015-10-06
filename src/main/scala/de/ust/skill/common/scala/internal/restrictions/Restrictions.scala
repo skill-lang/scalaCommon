@@ -3,15 +3,13 @@
  * \__ \ ' <| | | |__     <<debug>>                                           *
  * |___/_|\_\_|_|____|    by: <<some developer>>                              *
 \*                                                                            */
-package de.ust.skill.common.scala.internal
+package de.ust.skill.common.scala.internal.restrictions
 
-import de.ust.skill.common.scala.api.SkillException
 import de.ust.skill.common.scala.api.RestrictionCheckFailed
 import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.RestrictionCheckFailed
 import de.ust.skill.common.scala.api.RestrictionCheckFailed
-
-package restrictions {
+import de.ust.skill.common.scala.internal.StoragePool
 
   /**
    * Marker trait for restrictions applicable to types.
@@ -83,14 +81,14 @@ package restrictions {
    * A nonnull restricition. It will ensure that field data is non null.
    */
   object NonNull {
-    val theNonNull = new NonNull[SkillObject]
+    val theNonNull = new NonNull[AnyRef]
 
-    def apply[T <: SkillObject] : NonNull[T] = theNonNull.asInstanceOf[NonNull[T]]
+    def apply[T <: AnyRef] : NonNull[T] = theNonNull.asInstanceOf[NonNull[T]]
   }
   /**
    * A nonnull restricition. It will ensure that field data is non null.
    */
-  final class NonNull[T <: SkillObject] extends CheckableFieldRestriction[T] {
+  final class NonNull[T <: AnyRef] extends CheckableFieldRestriction[T] {
 
     override def check(value : T) {
       if (value == null)
@@ -171,4 +169,3 @@ package restrictions {
         throw RestrictionCheckFailed(s"$value is not one of ${types.map(_.getName).mkString}")
     }
   }
-}

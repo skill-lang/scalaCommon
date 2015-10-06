@@ -14,6 +14,7 @@ import de.ust.skill.common.scala.SkillID
 import de.ust.skill.common.jvm.streams.InStream
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import scala.collection.mutable.HashSet
+import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 
 /**
  * @author Timm Felden
@@ -21,7 +22,8 @@ import scala.collection.mutable.HashSet
 sealed abstract class StoragePool[T <: B, B <: SkillObject](
   final val name : String,
   final val superPool : StoragePool[_ >: T <: B, B],
-  _typeID : Int)
+  _typeID : Int,
+  final val knownFields : Set[String])
     extends UserType[T](_typeID) with Access[T] {
 
   def getInstanceClass : Class[T]
@@ -216,15 +218,24 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 object StoragePool {
   val noTypeRestrictions = new HashSet[restrictions.TypeRestriction]
   val noFieldRestrictions = new HashSet[restrictions.FieldRestriction]
+  val noKnownFields = Set[String]()
 }
 
-abstract class BasePool[B <: SkillObject](_name : String, _typeID : Int) extends StoragePool[B, B](_name, null, _typeID) {
+abstract class BasePool[B <: SkillObject](
+  _typeID : Int,
+  _name : String,
+  _knownFields : Set[String])
+    extends StoragePool[B, B](_name, null, _typeID, _knownFields) {
 
   final override def basePool : BasePool[B] = this
 }
 
-abstract class SubPool[T <: B, B <: SkillObject](_name : String, _superPool : StoragePool[_ >: T <: B, B], _typeID : Int)
-    extends StoragePool[T, B](_name, _superPool, _typeID) {
+abstract class SubPool[T <: B, B <: SkillObject](
+  _typeID : Int,
+  _name : String,
+  _superPool : StoragePool[_ >: T <: B, B],
+  _knownFields : Set[String])
+    extends StoragePool[T, B](_name, _superPool, _typeID, _knownFields) {
 
   final override val basePool = superPool.basePool
 
