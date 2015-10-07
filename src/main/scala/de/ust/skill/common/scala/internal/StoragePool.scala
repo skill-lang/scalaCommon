@@ -151,7 +151,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * a total function, that will either return the correct object or null
    */
   @inline final private[internal] def getById(id : SkillID) : T = {
-    if (id < 1 || data.length <= id)
+    if (id < 1 || data.length < id)
       null.asInstanceOf[T]
     else
       data(id - 1)
