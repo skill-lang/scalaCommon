@@ -296,7 +296,7 @@ trait SkillFileParser[SF <: SkillState] {
             } else {
               // known field
               endOffset = in.v64
-              p.dataFields(id).addChunk(new SimpleChunk(dataEnd, endOffset, block.dynamicCount, block.bpo))
+              p.dataFields(id - 1).addChunk(new SimpleChunk(dataEnd, endOffset, block.dynamicCount, block.bpo))
             }
             dataEnd = endOffset
           }
