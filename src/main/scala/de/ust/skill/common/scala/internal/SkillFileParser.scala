@@ -2,13 +2,11 @@ package de.ust.skill.common.scala.internal
 
 import java.nio.file.Path
 import java.util.concurrent.Semaphore
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.annotation.switch
-
 import de.ust.skill.common.jvm.streams.FileInputStream
 import de.ust.skill.common.jvm.streams.MappedInStream
 import de.ust.skill.common.scala.api.ParseException
@@ -16,6 +14,9 @@ import de.ust.skill.common.scala.api.SkillException
 import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.WriteMode
 import de.ust.skill.common.scala.internal.fieldTypes._
+import java.util.Collections.SynchronizedList
+import java.util.Collections.SynchronizedList
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * @author Timm Felden
@@ -322,6 +323,7 @@ trait SkillFileParser[SF <: SkillState] {
   final protected def triggerFieldDeserialization(
     types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
     dataList : ArrayBuffer[MappedInStream]) {
+    val errors = new ConcurrentLinkedQueue[Throwable]
     val barrier = new ReadBarrier
     val ts = types.iterator
     while (ts.hasNext) {
@@ -337,17 +339,21 @@ trait SkillFileParser[SF <: SkillState] {
           if (dc.isInstanceOf[BulkChunk]) {
             blockIndex = dc.asInstanceOf[BulkChunk].blockCount
             if (dc.count != 0)
-              global.execute(new Job(barrier, f, dataList(blockIndex), dc))
+              global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
           } else {
             blockIndex += 1
             if (dc.count != 0)
-              global.execute(new Job(barrier, f, dataList(blockIndex), dc))
+              global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
           }
         }
       }
     }
 
     barrier.await
+
+    if (!errors.isEmpty()) {
+      throw new InternalError(s"${errors.size()} Job(s) crashed. First error supplied below.", errors.peek())
+    }
   }
 }
 
@@ -355,11 +361,16 @@ final class Job(
     val barrier : ReadBarrier,
     val field : FieldDeclaration[_, _],
     val in : MappedInStream,
-    val target : Chunk) extends Runnable {
+    val target : Chunk,
+    val errors : ConcurrentLinkedQueue[Throwable]) extends Runnable {
 
   override def run {
     barrier.begin
-    field.read(in, target)
+    try {
+      field.read(in, target)
+    } catch {
+      case e : Throwable ⇒ errors.add(e)
+    }
     barrier.end
   }
 }

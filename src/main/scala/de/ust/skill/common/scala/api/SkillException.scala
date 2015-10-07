@@ -13,6 +13,13 @@ sealed abstract class SkillException private[scala] (msg : String, cause : Throw
   extends Exception(msg, cause);
 
 /**
+ * Thrown if something really bad happened that is likely to be caused by an implementation error or disk corruption.
+ *
+ * @author Timm Felden
+ */
+final case class InternalError(msg : String, cause : Throwable) extends SkillException(msg, cause);
+
+/**
  * thrown if an operation can not be performed in general, message will explain the problem
  */
 final case class IllegalOperation(msg : String) extends SkillException(msg);
