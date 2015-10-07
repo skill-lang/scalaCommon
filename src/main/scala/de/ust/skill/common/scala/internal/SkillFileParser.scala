@@ -136,11 +136,11 @@ trait SkillFileParser[SF <: SkillState] {
 
           // check null name
           if (null == name)
-            throw ParseException(in, blockCounter, "corrupted file, nullptr in typename")
+            throw ParseException(in, blockCounter, "Corrupted file, nullptr in typename")
 
           // check duplicate types
           if (seenTypes.contains(name))
-            throw ParseException(in, blockCounter, s"duplicate definition of type $name")
+            throw ParseException(in, blockCounter, s"Duplicate definition of type $name")
 
           seenTypes.add(name)
 
