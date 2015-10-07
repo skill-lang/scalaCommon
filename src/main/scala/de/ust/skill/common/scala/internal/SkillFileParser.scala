@@ -229,8 +229,7 @@ trait SkillFileParser[SF <: SkillState] {
 
         // track offset information, so that we can create the block maps and jump to the next block directly after
         // parsing field information
-        val fileOffset = in.position
-        var dataEnd = fileOffset
+        var dataEnd = 0L
 
         // parse fields
         val es = localFields.iterator
