@@ -364,8 +364,9 @@ final class Job(
     val target : Chunk,
     val errors : ConcurrentLinkedQueue[Throwable]) extends Runnable {
 
+  barrier.begin
+
   override def run {
-    barrier.begin
     try {
       field.read(in, target)
     } catch {
