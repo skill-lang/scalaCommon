@@ -8,7 +8,7 @@ import java.nio.file.Path
  *
  * @author Timm Felden
  */
-trait SkillFile extends Iterable[Access[_ <: SkillObject]] {
+trait SkillFile extends IndexedSeq[Access[_ <: SkillObject]] {
 
   /**
    * strings stored in this file
