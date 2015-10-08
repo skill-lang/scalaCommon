@@ -210,8 +210,9 @@ abstract class StringType extends FieldType[String](14);
  * container types
  */
 sealed abstract class CompoundType[T](_typeID : Int) extends FieldType[T](_typeID);
-sealed abstract class SingleBaseTypeContainer[T <: Iterable[Base], Base](_typeID : Int, val groundType : FieldType[Base])
+sealed abstract class SingleBaseTypeContainer[T <: Iterable[Base], Base](_typeID : Int)
     extends CompoundType[T](_typeID) {
+  def groundType : FieldType[Base]
 
   override def offset(target : T) : Long =
     target.foldLeft(V64.offset(target.size)) { case (r, i) ⇒ r + groundType.offset(i) }
@@ -222,8 +223,8 @@ sealed abstract class SingleBaseTypeContainer[T <: Iterable[Base], Base](_typeID
   }
 }
 
-final case class ConstantLengthArray[T](val length : Int, _groundType : FieldType[T])
-    extends SingleBaseTypeContainer[ArrayBuffer[T], T](15, _groundType) {
+final case class ConstantLengthArray[T](val length : Int, val groundType : FieldType[T])
+    extends SingleBaseTypeContainer[ArrayBuffer[T], T](15) {
 
   override def read(in : InStream) = (for (i ← 0 until length) yield groundType.read(in)).to
 
@@ -238,8 +239,8 @@ final case class ConstantLengthArray[T](val length : Int, _groundType : FieldTyp
   }
 }
 
-final case class VariableLengthArray[T](_groundType : FieldType[T])
-    extends SingleBaseTypeContainer[ArrayBuffer[T], T](17, _groundType) {
+final case class VariableLengthArray[T](val groundType : FieldType[T])
+    extends SingleBaseTypeContainer[ArrayBuffer[T], T](17) {
 
   override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
@@ -250,8 +251,8 @@ final case class VariableLengthArray[T](_groundType : FieldType[T])
   }
 }
 
-final case class ListType[T](_groundType : FieldType[T])
-    extends SingleBaseTypeContainer[ListBuffer[T], T](18, _groundType) {
+final case class ListType[T](val groundType : FieldType[T])
+    extends SingleBaseTypeContainer[ListBuffer[T], T](18) {
 
   override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
@@ -261,8 +262,8 @@ final case class ListType[T](_groundType : FieldType[T])
     case _           ⇒ false
   }
 }
-final case class SetType[T](_groundType : FieldType[T])
-    extends SingleBaseTypeContainer[HashSet[T], T](19, _groundType) {
+final case class SetType[T](val groundType : FieldType[T])
+    extends SingleBaseTypeContainer[HashSet[T], T](19) {
 
   override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
