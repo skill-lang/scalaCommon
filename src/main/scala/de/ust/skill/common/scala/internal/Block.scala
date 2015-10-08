@@ -12,7 +12,7 @@ import de.ust.skill.common.scala.SkillID
  * @note While writing a Pool to disk, the latest block is the block currently
  *       written.
  *
- * @param the index of the block inside of the file
+ * @param the index of the block inside of the file, starting from 0
  * @param bpo absolute offset relative to base pools first index, because this is required almost always
  * @param staticCount is a var, because the number of static instances can only be known after the sub type has been
  * read
