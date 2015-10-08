@@ -2,18 +2,21 @@ package de.ust.skill.common.scala.internal
 
 import java.nio.file.Files
 import java.nio.file.Path
+
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
+
+import de.ust.skill.common.jvm.streams.FileOutputStream
 import de.ust.skill.common.scala.api.Access
 import de.ust.skill.common.scala.api.Append
 import de.ust.skill.common.scala.api.IllegalOperation
 import de.ust.skill.common.scala.api.ReadOnly
-import de.ust.skill.common.scala.api.SkillFile
-import de.ust.skill.common.scala.api.Write
-import de.ust.skill.common.scala.api.WriteMode
-import de.ust.skill.common.scala.api.SkillObject
-import scala.collection.mutable.HashMap
 import de.ust.skill.common.scala.api.RestrictionCheckFailed
 import de.ust.skill.common.scala.api.SkillException
+import de.ust.skill.common.scala.api.SkillFile
+import de.ust.skill.common.scala.api.SkillObject
+import de.ust.skill.common.scala.api.Write
+import de.ust.skill.common.scala.api.WriteMode
 
 /**
  * @author Timm Felden
@@ -89,14 +92,20 @@ class SkillState(
     }
   }
 
-  def flush : Unit = {
-    ???
+  final def flush : Unit = mode match {
+    case Write    ⇒ FileWriters.write(this, FileOutputStream.write(path))
+    case Append   ⇒ FileWriters.append(this, FileOutputStream.append(path))
+    case ReadOnly ⇒ throw IllegalOperation("can not flush a read only file")
   }
 
-  def close : Unit = {
+  final def close : Unit = {
     flush
     changeMode(ReadOnly)
   }
 
-  def iterator : Iterator[Access[_ <: de.ust.skill.common.scala.api.SkillObject]] = types.iterator
+  final override def iterator : Iterator[Access[_ <: de.ust.skill.common.scala.api.SkillObject]] = types.iterator
+
+  final override def apply(idx : Int) : Access[_ <: de.ust.skill.common.scala.api.SkillObject] = types(idx)
+
+  final override def length : Int = types.length
 }

@@ -1,14 +1,17 @@
 package de.ust.skill.common.scala.internal
 
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 import de.ust.skill.common.jvm.streams.FileInputStream
-import de.ust.skill.common.jvm.streams.MappedInStream
+import de.ust.skill.common.jvm.streams.FileOutputStream
+import de.ust.skill.common.jvm.streams.InStream
 import de.ust.skill.common.jvm.streams.MappedOutStream
 import de.ust.skill.common.scala.SkillID
 import de.ust.skill.common.scala.api.StringAccess
 import de.ust.skill.common.scala.internal.fieldTypes.StringType
-import de.ust.skill.common.jvm.streams.InStream
+import java.nio.ByteBuffer
+import de.ust.skill.common.jvm.streams.OutStream
 
 /**
  * @author Timm Felden
@@ -38,6 +41,11 @@ final class StringPool(val in : FileInputStream)
    * get string by ID
    */
   private[internal] var idMap = ArrayBuffer[String](null)
+
+  /**
+   * map used to write strings
+   */
+  private val serializationIDs = new HashMap[String, Int]
 
   /**
    * returns the string, that should be used
@@ -87,11 +95,62 @@ final class StringPool(val in : FileInputStream)
     ???
   }
 
-  def write(target : String, out : MappedOutStream) : Unit = {
-    ???
+  def write(target : String, out : OutStream) : Unit = {
+    if (null == target) out.i8(0)
+    else out.v64(serializationIDs(target))
+  }
+  override def write(target : String, out : MappedOutStream) : Unit = {
+    if (null == target) out.i8(0)
+    else out.v64(serializationIDs(target))
   }
 
   final override def toString = "string"
+
+  def prepareAndWrite(out : FileOutputStream) {
+    var i = stringPositions.length
+    while (i != 0) {
+      get(i)
+      i -= 1
+    }
+
+    // create inverse map
+    serializationIDs.clear()
+    i = idMap.length
+    while (i != 0) {
+      serializationIDs(idMap(i)) = i
+    }
+
+    // Insert new strings to the map;
+    // this is where duplications with lazy strings will be detected and eliminated
+    for (s ← knownStrings) {
+      if (!serializationIDs.contains(s)) {
+        serializationIDs(s) = idMap.length
+        idMap.append(s)
+      }
+    }
+
+    val count = idMap.length - 1
+    out.v64(count)
+
+    // write block, if nonempty
+    if (0 != count) {
+      val end = out.mapBlock(4 * count).buffer().asIntBuffer();
+      var off = 0;
+      i = 1
+      while (i <= count) {
+        val data = idMap(i).getBytes()
+        off += data.length;
+        end.put(off)
+        out.put(data)
+        i += 1
+      }
+    }
+  }
+
+  private[internal] def clearSearilizationIDs = {
+    serializationIDs.clear()
+    serializationIDs.sizeHint(0)
+  }
 }
 
 /**

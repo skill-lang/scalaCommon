@@ -15,6 +15,7 @@ import de.ust.skill.common.jvm.streams.InStream
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import scala.collection.mutable.HashSet
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
+import java.util.Arrays
 
 /**
  * @author Timm Felden
@@ -96,7 +97,24 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    *
    * no instances can be added or deleted in a fixed state
    */
-  var fixed = false
+  private var fixed = false
+
+  /**
+   * sets fixed for this pool; automatically adjusts sub/super pools
+   */
+  def fix(setFixed : Boolean) {
+    // only do something if there is action required
+    if (setFixed != fixed) {
+      fixed = setFixed
+      if (fixed) {
+        subPools.foreach(_.fix(true))
+        cachedSize = subPools.foldLeft(staticSize)(_ + _.cachedSize)
+      } else {
+        superPool.fix(false)
+      }
+    }
+  }
+
   /**
    * number of static instances stored in data
    */
@@ -174,11 +192,23 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    */
   def allocateInstances : Unit
 
+  /**
+   * update blocks to reflect actual layout of data
+   */
+  protected final def updateAfterCompress(lbpoMap : Array[Int]) {
+    blocks.clear()
+    // pools without instances wont be written to disk
+    if (0 != cachedSize) {
+      blocks.append(new Block(0, lbpoMap(poolIndex), staticSize, cachedSize))
+      subPools.foreach(_.updateAfterCompress(lbpoMap))
+    }
+  }
+
   final def read(in : InStream) : T = getById(in.v64.toInt)
 
   final def offset(target : T) : Long = V64.offset(target.skillID)
 
-  final def write(target : T, out : MappedOutStream) : Unit = out.v64(target.skillID)
+  final def write(target : T, out : MappedOutStream) : Unit = if (null == target) out.i8(0) else out.v64(target.skillID)
 
   /**
    * override stupid inherited equals method
@@ -228,6 +258,37 @@ abstract class BasePool[B <: SkillObject](
     extends StoragePool[B, B](_name, null, _typeID, _knownFields) {
 
   final override def basePool : BasePool[B] = this
+
+  final def compress(lbpoMap : Array[Int]) {
+    val d = Arrays.copyOf(data, cachedSize)
+    var p = 0
+    val xs = allInTypeOrder
+    while (xs.hasNext) {
+      val i = xs.next()
+      d(p) = i
+      p += 1
+      i.skillID = p
+    }
+    data = d
+    updateAfterCompress(lbpoMap)
+  }
+  //
+  //   is
+  //      D : Annotation_Array := new Annotation_Array_T (1 .. This.Size);
+  //      P : Skill_ID_T       := 1;
+  //
+  //      procedure Update (I : Annotation) is
+  //      begin
+  //         D (P)      := I;
+  //         I.Skill_ID := P;
+  //         P          := P + 1;
+  //      end Update;
+  //   begin
+  //      This.Do_In_Type_Order (Update'Access);
+  //
+  //      This.Data := D;
+  //      This.Update_After_Compress (Lbpo_Map);
+  //   end Compress;  
 }
 
 abstract class SubPool[T <: B, B <: SkillObject](

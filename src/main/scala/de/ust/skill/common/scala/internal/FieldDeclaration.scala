@@ -26,7 +26,10 @@ import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
   final override val t : FieldType[T],
   final override val name : String,
-  protected[internal] final val index : Int,
+  /**
+ * index of the field inside of dataFields; this may change, if fields get reordered by a write operation
+ */
+  protected[internal] final var index : Int,
   final val owner : StoragePool[Obj, _ >: Obj <: SkillObject])
     extends api.FieldDeclaration[T] {
 
@@ -54,7 +57,12 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
   /**
    * offset calculation as preparation of writing data belonging to the owners last block
    */
-  def offset : Long;
+  def offset : Unit;
+
+  /**
+   * offsets are stored in fields, so that file writer does not have to allocate futures
+   */
+  final protected[internal] var cachedOffset : Long = 0L
 
   /**
    * write data into a map at the end of a write/append operation
@@ -143,7 +151,7 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
     if (lastPosition - firstPosition != lastChunk.end - lastChunk.begin)
       throw PoolSizeMissmatchError(dataChunks.size - 1, lastChunk.begin, lastChunk.end, this, lastPosition)
   }
-  override def offset : Long = ???
+  override def offset : Unit = ???
   override def write(out : MappedOutStream) : Unit = ???
 
   override def getR(ref : SkillObject) : T = {
