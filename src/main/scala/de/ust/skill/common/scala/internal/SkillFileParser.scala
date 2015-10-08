@@ -1,22 +1,38 @@
 package de.ust.skill.common.scala.internal
 
 import java.nio.file.Path
-import java.util.concurrent.Semaphore
+import java.util.concurrent.ConcurrentLinkedQueue
+import scala.annotation.switch
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.annotation.switch
 import de.ust.skill.common.jvm.streams.FileInputStream
 import de.ust.skill.common.jvm.streams.MappedInStream
 import de.ust.skill.common.scala.api.ParseException
 import de.ust.skill.common.scala.api.SkillException
-import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.WriteMode
-import de.ust.skill.common.scala.internal.fieldTypes._
-import java.util.Collections.SynchronizedList
-import java.util.Collections.SynchronizedList
-import java.util.concurrent.ConcurrentLinkedQueue
+import de.ust.skill.common.scala.internal.fieldTypes.AnnotationType
+import de.ust.skill.common.scala.internal.fieldTypes.BoolType
+import de.ust.skill.common.scala.internal.fieldTypes.ConstantI16
+import de.ust.skill.common.scala.internal.fieldTypes.ConstantI32
+import de.ust.skill.common.scala.internal.fieldTypes.ConstantI64
+import de.ust.skill.common.scala.internal.fieldTypes.ConstantI8
+import de.ust.skill.common.scala.internal.fieldTypes.ConstantLengthArray
+import de.ust.skill.common.scala.internal.fieldTypes.ConstantV64
+import de.ust.skill.common.scala.internal.fieldTypes.F32
+import de.ust.skill.common.scala.internal.fieldTypes.F64
+import de.ust.skill.common.scala.internal.fieldTypes.FieldType
+import de.ust.skill.common.scala.internal.fieldTypes.I16
+import de.ust.skill.common.scala.internal.fieldTypes.I32
+import de.ust.skill.common.scala.internal.fieldTypes.I64
+import de.ust.skill.common.scala.internal.fieldTypes.I8
+import de.ust.skill.common.scala.internal.fieldTypes.ListType
+import de.ust.skill.common.scala.internal.fieldTypes.MapType
+import de.ust.skill.common.scala.internal.fieldTypes.SetType
+import de.ust.skill.common.scala.internal.fieldTypes.V64
+import de.ust.skill.common.scala.internal.fieldTypes.VariableLengthArray
+import de.ust.skill.common.scala.api.SkillObject
 
 /**
  * @author Timm Felden
@@ -324,7 +340,7 @@ trait SkillFileParser[SF <: SkillState] {
     types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
     dataList : ArrayBuffer[MappedInStream]) {
     val errors = new ConcurrentLinkedQueue[Throwable]
-    val barrier = new ReadBarrier
+    val barrier = new Barrier
     val ts = types.iterator
     while (ts.hasNext) {
       val t = ts.next
@@ -358,7 +374,7 @@ trait SkillFileParser[SF <: SkillState] {
 }
 
 final class Job(
-    val barrier : ReadBarrier,
+    val barrier : Barrier,
     val field : FieldDeclaration[_, _],
     val in : MappedInStream,
     val target : Chunk,
@@ -374,10 +390,4 @@ final class Job(
     }
     barrier.end
   }
-}
-
-final class ReadBarrier extends Semaphore(1) {
-  def begin = reducePermits(1)
-  def end = release(1)
-  def await = acquire(1)
 }
