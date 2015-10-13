@@ -107,7 +107,7 @@ final class StringPool(val in : FileInputStream)
   final override def toString = "string"
 
   def prepareAndWrite(out : FileOutputStream) {
-    var i = stringPositions.length
+    var i = stringPositions.length - 1
     while (i != 0) {
       get(i)
       i -= 1
@@ -115,9 +115,10 @@ final class StringPool(val in : FileInputStream)
 
     // create inverse map
     serializationIDs.clear()
-    i = idMap.length
+    i = idMap.length - 1
     while (i != 0) {
       serializationIDs(idMap(i)) = i
+      i -= 1
     }
 
     // Insert new strings to the map;

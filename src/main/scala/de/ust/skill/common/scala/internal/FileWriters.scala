@@ -85,7 +85,7 @@ final object FileWriters {
     }
   }
 
-  def write(state : SkillState, out : FileOutputStream) {
+  final def write(state : SkillState, out : FileOutputStream) {
     // fix pools to make size operations constant time (happens in amortized constant time)
     state.types.par.foreach {
       case p : BasePool[_] ⇒

@@ -25,7 +25,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   final val superPool : StoragePool[_ >: T <: B, B],
   _typeID : Int,
   final val knownFields : Set[String])
-    extends UserType[T](_typeID) with Access[T] {
+    extends UserType[T](_typeID.ensuring(_ >= 32, "user types have IDs larger then 32")) with Access[T] {
 
   def getInstanceClass : Class[T]
 
@@ -109,7 +109,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
       if (fixed) {
         subPools.foreach(_.fix(true))
         cachedSize = subPools.foldLeft(staticSize)(_ + _.cachedSize)
-      } else {
+      } else if (superPool != null) {
         superPool.fix(false)
       }
     }
