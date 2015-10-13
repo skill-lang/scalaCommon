@@ -137,7 +137,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    *
    * TODO provide a sane implementation
    */
-  private[internal] val autoFields = new ArrayBuffer[AutoField[_, T]]()
+  protected[internal] val autoFields = new ArrayBuffer[AutoField[_, T]]()
 
   /**
    * static fields of this type taking part in serialization
@@ -158,6 +158,8 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     dataFields.append(f);
     return f;
   }
+
+  def addKnownField[T](name : String, state : SkillState) : Unit
 
   /**
    * that took part in serialization

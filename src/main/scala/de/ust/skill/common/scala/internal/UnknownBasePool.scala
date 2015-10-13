@@ -26,6 +26,22 @@ final class UnknownBasePool(_name : String, _typeId : Int)
     }
   }
 
+  def addKnownField[T](name : String, state : SkillState) {
+  }
+
+  def makeSubPool(name : String, typeId : Int) : SubPool[_ <: de.ust.skill.common.scala.api.CompletelyUnknownObject, CompletelyUnknownObject] = {
+    new UnknownBasePool.UnknownSubPool(name, this, typeId)
+  }
+
+  def reflectiveAllocateInstance : CompletelyUnknownObject = {
+    val r = new CompletelyUnknownObject(-1, this)
+    this.newObjects.append(r)
+    r
+  }
+}
+
+object UnknownBasePool {
+
   final class UnknownSubPool(
     _name : String,
     _superPool : StoragePool[CompletelyUnknownObject, CompletelyUnknownObject],
@@ -47,6 +63,9 @@ final class UnknownBasePool(_name : String, _typeId : Int)
       }
     }
 
+    def addKnownField[T](name : String, state : SkillState) {
+    }
+
     def makeSubPool(name : String, typeId : Int) : SubPool[_ <: CompletelyUnknownObject, CompletelyUnknownObject] = {
       new UnknownSubPool(name, this, typeId)
     }
@@ -57,15 +76,4 @@ final class UnknownBasePool(_name : String, _typeId : Int)
       r
     }
   }
-
-  def makeSubPool(name : String, typeId : Int) : SubPool[_ <: de.ust.skill.common.scala.api.CompletelyUnknownObject, CompletelyUnknownObject] = {
-    new UnknownSubPool(name, this, typeId)
-  }
-
-  def reflectiveAllocateInstance : CompletelyUnknownObject = {
-    val r = new CompletelyUnknownObject(-1, this)
-    this.newObjects.append(r)
-    r
-  }
 }
-
