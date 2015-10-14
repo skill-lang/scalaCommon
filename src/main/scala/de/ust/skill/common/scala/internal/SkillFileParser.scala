@@ -308,7 +308,7 @@ trait SkillFileParser[SF <: SkillState] {
               endOffset = in.v64
 
               val f = p.addField(id, t, fieldName, rest)
-              f.addChunk(new BulkChunk(dataEnd, endOffset, p.cachedSize, blockCounter))
+              f.addChunk(new BulkChunk(dataEnd, endOffset, p.cachedSize, p.blocks.size - 1))
             } else {
               // known field
               endOffset = in.v64

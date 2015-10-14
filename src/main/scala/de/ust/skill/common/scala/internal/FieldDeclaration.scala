@@ -184,8 +184,8 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
     extends DistributedField[T, Obj](_t, _name, _index, _owner) {
 
   // pending parts that have to be loaded
-  private var parts = new ListBuffer[MappedInStream]()
-  private def isLoaded = parts.isEmpty
+  private var parts = new HashMap[Chunk, MappedInStream]
+  private def isLoaded = null == parts
 
   // executes pending read operations
   private def load {
@@ -195,13 +195,11 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
     while (chunkIndex < dataChunks.size) {
       val chunk = dataChunks(chunkIndex)
       chunkIndex += 1
-      val in = new MappedInStream(parts.head.asByteBuffer().duplicate())
-      val offset = in.position().toInt
-      in.asByteBuffer().position(offset + chunk.begin.toInt)
-      in.asByteBuffer().limit(offset + chunk.end.toInt)
+      val in = parts(chunk)
+      in.asByteBuffer().position(chunk.begin.toInt)
+      in.asByteBuffer().limit(chunk.end.toInt)
       val firstPosition = in.position
       try {
-        parts.remove(0)
         chunk match {
           case c : SimpleChunk ⇒
             var i = c.bpo.toInt
@@ -233,6 +231,7 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
       if (lastPosition - firstPosition != chunk.end - chunk.begin)
         throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, lastPosition)
     }
+    parts = null
   }
 
   /**
@@ -244,7 +243,9 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
   }
 
   override def read(part : MappedInStream, target : Chunk) {
-    parts += part
+    this.synchronized {
+      parts(target) = part
+    }
   }
 
   override def getR(ref : SkillObject) : T = {
