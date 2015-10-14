@@ -116,8 +116,8 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
 
   // data held as in storage pools
   // @note see paper notes for O(1) implementation
-  protected var data = new HashMap[SkillObject, T]() //Array[T]()
-  protected var newData = new HashMap[SkillObject, T]()
+  protected var data = new HashMap[Obj, T]() //Array[T]()
+  protected var newData = new HashMap[Obj, T]()
 
   override def read(in : MappedInStream, lastChunk : Chunk) {
     val d = owner match {
@@ -156,15 +156,15 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
 
   override def getR(ref : SkillObject) : T = {
     if (-1 == ref.skillID)
-      return newData(ref)
+      return newData(ref.asInstanceOf[Obj])
     else
-      return data(ref)
+      return data(ref.asInstanceOf[Obj])
   }
   override def setR(ref : SkillObject, value : T) {
     if (-1 == ref.skillID)
-      newData.put(ref, value)
+      newData.put(ref.asInstanceOf[Obj], value)
     else
-      data(ref) = value
+      data(ref.asInstanceOf[Obj]) = value
   }
 
   def iterator = data.iterator ++ newData.valuesIterator
@@ -195,10 +195,7 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
     while (chunkIndex < dataChunks.size) {
       val chunk = dataChunks(chunkIndex)
       chunkIndex += 1
-      val in = parts(chunk)
-      in.asByteBuffer().position(chunk.begin.toInt)
-      in.asByteBuffer().limit(chunk.end.toInt)
-      val firstPosition = in.position
+      val in = parts(chunk).view(chunk.begin.toInt, chunk.end.toInt)
       try {
         chunk match {
           case c : SimpleChunk ⇒
@@ -227,9 +224,8 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
           val lastPosition = in.position
           throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, lastPosition)
       }
-      val lastPosition = in.position
-      if (lastPosition - firstPosition != chunk.end - chunk.begin)
-        throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, lastPosition)
+      if (in.asByteBuffer().remaining() != 0)
+        throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, in.position())
     }
     parts = null
   }
@@ -250,23 +246,23 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
 
   override def getR(ref : SkillObject) : T = {
     if (-1 == ref.skillID)
-      return newData(ref)
+      return newData(ref.asInstanceOf[Obj])
 
     if (!isLoaded)
       load
 
-    return super.getR(ref)
+    return data(ref.asInstanceOf[Obj])
   }
 
   override def setR(ref : SkillObject, v : T) {
     if (-1 == ref.skillID)
-      newData(ref) = v
+      newData(ref.asInstanceOf[Obj]) = v
     else {
 
       if (!isLoaded)
         load
 
-      return super.setR(ref, v)
+      return data(ref.asInstanceOf[Obj]) = v
     }
   }
 
