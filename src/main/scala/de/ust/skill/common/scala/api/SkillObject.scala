@@ -82,4 +82,6 @@ final class CompletelyUnknownObject(
   final def getTypeName : String = owner.name
 
   final def prettyString : String = s"$getTypeName#$skillID"
+
+  final override def toString : String = s"unknown($getTypeName)#$skillID"
 }
