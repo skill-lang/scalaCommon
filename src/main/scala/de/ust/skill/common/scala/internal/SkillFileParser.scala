@@ -33,6 +33,7 @@ import de.ust.skill.common.scala.internal.fieldTypes.SetType
 import de.ust.skill.common.scala.internal.fieldTypes.V64
 import de.ust.skill.common.scala.internal.fieldTypes.VariableLengthArray
 import de.ust.skill.common.scala.api.SkillObject
+import de.ust.skill.common.scala.SkillID
 
 /**
  * @author Timm Felden
@@ -137,6 +138,7 @@ trait SkillFileParser[SF <: SkillState] {
 
         // this barrier is strictly increasing inside of each block and reset to 0 at the beginning of each block
         var blockIDBarrier : Int = 0;
+        var blockBPOBarrier : SkillID = 0;
 
         // reset counters and queues
         seenTypes.clear
@@ -213,12 +215,20 @@ trait SkillFileParser[SF <: SkillState] {
 
           // in contrast to prior implementation, bpo is the position inside of data, even if there are no actual
           // instances. We need this behavior, because that way we can cheaply calculate the number of static instances
-          val lbpo = if (null == definition.superPool)
+          val lbpo = if (null == definition.superPool) {
+            blockBPOBarrier = 0 // <- reset barrier, because we check only children
             0
-          else if (0 != count)
+          } else if (0 != count)
             in.v64().toInt
           else
             definition.superPool.blocks.last.bpo
+
+          // check rising bpo property (equality is okay here)
+          if (blockBPOBarrier <= lbpo)
+            blockBPOBarrier = lbpo
+          else
+            throw new ParseException(in, blockCounter,
+              s"Found unordered type block. Type $name has bpo ${lbpo}, barrier was $blockBPOBarrier.");
 
           // static count and cached size are updated in the resize phase
           definition.blocks.append(Block(blockCounter, definition.basePool.cachedSize + lbpo, count, count))
