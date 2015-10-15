@@ -165,8 +165,9 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * that took part in serialization
    * already
    * @note this is in fact an array of [B], but all sane access will be type correct :)
+   * @note internal use only!
    */
-  protected[internal] final var data : Array[T] = _
+  final var data : Array[T] = _
   /**
    * a total function, that will either return the correct object or null
    */
