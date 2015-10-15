@@ -341,25 +341,22 @@ trait SkillFileParser[SF <: SkillState] {
     dataList : ArrayBuffer[MappedInStream]) {
     val errors = new ConcurrentLinkedQueue[Throwable]
     val barrier = new Barrier
-    val ts = types.iterator
-    while (ts.hasNext) {
-      val t = ts.next
-      var fieldIndex = t.dataFields.size
-      while (0 != fieldIndex) {
-        fieldIndex -= 1
-        val f = t.dataFields(fieldIndex)
-        var bs = t.blocks.iterator
-        val dcs = f.dataChunks.iterator
-        while (dcs.hasNext) {
-          val dc = dcs.next
+    for (t ← types.par; f ← t.dataFields.par) {
+      var bs = t.blocks.iterator
+      val dcs = f.dataChunks.iterator
+      while (dcs.hasNext) {
+        val dc = dcs.next
+        if (dc.isInstanceOf[BulkChunk]) {
+          // skip blocks that do not contain data for our field
+          for (i ← 1 until dc.asInstanceOf[BulkChunk].blockCount)
+            bs.next
           val blockIndex = bs.next.blockIndex
-          if (dc.isInstanceOf[BulkChunk]) {
-            if (dc.count != 0)
-              global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
-          } else {
-            if (dc.count != 0)
-              global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
-          }
+          if (dc.count != 0)
+            global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
+        } else {
+          val blockIndex = bs.next.blockIndex
+          if (dc.count != 0)
+            global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
         }
       }
     }
