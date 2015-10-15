@@ -27,5 +27,7 @@ final class SimpleChunk(begin : Long, end : Long, count : SkillID, val bpo : Ski
  * block.
  *
  * @author Timm Felden
+ * 
+ * @param blockCount the number of blocks that have to be processed
  */
 final class BulkChunk(begin : Long, end : Long, count : SkillID, val blockCount : Int) extends Chunk(begin, end, count);

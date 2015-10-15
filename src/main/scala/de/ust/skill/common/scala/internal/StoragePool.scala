@@ -166,7 +166,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * already
    * @note this is in fact an array of [B], but all sane access will be type correct :)
    */
-  final var data : Array[T] = _
+  protected[internal] final var data : Array[T] = _
   /**
    * a total function, that will either return the correct object or null
    */
@@ -274,23 +274,6 @@ abstract class BasePool[B <: SkillObject](
     data = d
     updateAfterCompress(lbpoMap)
   }
-  //
-  //   is
-  //      D : Annotation_Array := new Annotation_Array_T (1 .. This.Size);
-  //      P : Skill_ID_T       := 1;
-  //
-  //      procedure Update (I : Annotation) is
-  //      begin
-  //         D (P)      := I;
-  //         I.Skill_ID := P;
-  //         P          := P + 1;
-  //      end Update;
-  //   begin
-  //      This.Do_In_Type_Order (Update'Access);
-  //
-  //      This.Data := D;
-  //      This.Update_After_Compress (Lbpo_Map);
-  //   end Compress;  
 }
 
 abstract class SubPool[T <: B, B <: SkillObject](
@@ -300,7 +283,7 @@ abstract class SubPool[T <: B, B <: SkillObject](
   _knownFields : Set[String])
     extends StoragePool[T, B](_name, _superPool, _typeID, _knownFields) {
 
-  final override val basePool = superPool.basePool
+  final override val basePool : BasePool[B] = superPool.basePool
 
   final override def allocateData : Unit = this.data = basePool.data.asInstanceOf[Array[T]]
 }

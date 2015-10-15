@@ -138,7 +138,6 @@ trait SkillFileParser[SF <: SkillState] {
 
         // this barrier is strictly increasing inside of each block and reset to 0 at the beginning of each block
         var blockIDBarrier : Int = 0;
-        var blockBPOBarrier : SkillID = 0;
 
         // reset counters and queues
         seenTypes.clear
@@ -216,42 +215,33 @@ trait SkillFileParser[SF <: SkillState] {
           // in contrast to prior implementation, bpo is the position inside of data, even if there are no actual
           // instances. We need this behavior, because that way we can cheaply calculate the number of static instances
           val lbpo = if (null == definition.superPool) {
-            blockBPOBarrier = 0 // <- reset barrier, because we check only children
             0
           } else if (0 != count)
             in.v64().toInt
           else
             definition.superPool.blocks.last.bpo
 
-          // check rising bpo property (equality is okay here)
-          if (blockBPOBarrier <= lbpo)
-            blockBPOBarrier = lbpo
-          else
-            throw new ParseException(in, blockCounter,
-              s"Found unordered type block. Type $name has bpo ${lbpo}, barrier was $blockBPOBarrier.");
-
           // static count and cached size are updated in the resize phase
-          definition.blocks.append(Block(blockCounter, definition.basePool.cachedSize + lbpo, count, count))
+          definition.blocks.append(new Block(blockCounter, definition.basePool.cachedSize + lbpo, count, count))
 
           resizeQueue.append(definition)
           localFields.append(new LFEntry(definition, in.v64().toInt))
         }
 
         // resize pools, i.e. update cachedSize and staticCount
-        for (i ← (0 until resizeQueue.size).par) {
-          val p = resizeQueue(i)
+        for (p ← resizeQueue) {
           val b = p.blocks.last
           p.cachedSize += b.dynamicCount
-          // calculate static count; if there is a next type, and it is one of our sub types,
-          // then the difference between its bpo and ours is the number of static instances, otherwise, we already have
-          // the correct number, as there are no subtypes in this block
-          if (i + 1 != resizeQueue.size) {
-            val q = resizeQueue(i + 1)
-            if (q.superPool == p)
-              b.staticCount = q.blocks.last.bpo - b.bpo
+          // calculate static count of our parent
+          val parent : StoragePool[_, _] = p.superPool
+          if (null != parent) {
+            val sb = parent.blocks.last
+            // this happens once or has no side effect
+            if (sb.staticCount == sb.dynamicCount) {
+              sb.staticCount = Math.min(sb.staticCount, b.bpo - sb.bpo)
+              p.staticDataInstnaces += p.blocks.last.staticCount
+            }
           }
-
-          p.staticDataInstnaces += b.staticCount
         }
 
         // track offset information, so that we can create the block maps and jump to the next block directly after
@@ -318,7 +308,7 @@ trait SkillFileParser[SF <: SkillState] {
               endOffset = in.v64
 
               val f = p.addField(id, t, fieldName, rest)
-              f.addChunk(new BulkChunk(dataEnd, endOffset, p.cachedSize, p.blocks.size - 1))
+              f.addChunk(new BulkChunk(dataEnd, endOffset, p.cachedSize, p.blocks.size))
             } else {
               // known field
               endOffset = in.v64
@@ -358,16 +348,15 @@ trait SkillFileParser[SF <: SkillState] {
       while (0 != fieldIndex) {
         fieldIndex -= 1
         val f = t.dataFields(fieldIndex)
-        var blockIndex = 0
+        var bs = t.blocks.iterator
         val dcs = f.dataChunks.iterator
         while (dcs.hasNext) {
           val dc = dcs.next
+          val blockIndex = bs.next.blockIndex
           if (dc.isInstanceOf[BulkChunk]) {
-            blockIndex = dc.asInstanceOf[BulkChunk].blockCount
             if (dc.count != 0)
               global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
           } else {
-            blockIndex += 1
             if (dc.count != 0)
               global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
           }

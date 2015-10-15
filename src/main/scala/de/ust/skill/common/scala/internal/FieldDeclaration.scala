@@ -207,10 +207,10 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
             }
           case bci : BulkChunk ⇒
             val blocks = owner.blocks
-            var blockIndex = 1 + bci.blockCount
-            while (0 != blockIndex) {
-              blockIndex -= 1
+            var blockIndex = 0
+            while (blockIndex < bci.blockCount) {
               val b = blocks(blockIndex)
+              blockIndex += 1
               var i = b.bpo
               val end = i + b.dynamicCount
               while (i != end) {
