@@ -107,18 +107,18 @@ final class AnnotationType(
   }
 
   def offset(target : SkillObject) : Long = {
-    if (null == target) 0L
+    if (null == target) 2L
     else {
       val p = typesByName(target.getTypeName).asInstanceOf[StoragePool[SkillObject, SkillObject]]
-      V64.offset(p.poolIndex) + p.offset(target)
+      V64.offset(p.poolIndex + 1) + V64.offset(target.skillID)
     }
   }
 
   def write(target : SkillObject, out : MappedOutStream) : Unit = {
-    if (null == target) out.i8(0)
+    if (null == target) out.i16(0)
     else {
       val p = typesByName(target.getTypeName).asInstanceOf[StoragePool[SkillObject, SkillObject]]
-      out.v64(p.poolIndex)
+      out.v64(p.poolIndex + 1)
       out.v64(target.skillID)
     }
   }
