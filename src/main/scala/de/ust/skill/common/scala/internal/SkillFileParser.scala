@@ -222,7 +222,9 @@ trait SkillFileParser[SF <: SkillState] {
             definition.superPool.blocks.last.bpo
 
           // static count and cached size are updated in the resize phase
+          // @note we assume that all dynamic instance are static instances as well, until we know for sure
           definition.blocks.append(new Block(blockCounter, definition.basePool.cachedSize + lbpo, count, count))
+          definition.staticDataInstnaces += count
 
           resizeQueue.append(definition)
           localFields.append(new LFEntry(definition, in.v64().toInt))
@@ -239,7 +241,8 @@ trait SkillFileParser[SF <: SkillState] {
             // this happens once or has no side effect
             if (sb.staticCount == sb.dynamicCount) {
               sb.staticCount = Math.min(sb.staticCount, b.bpo - sb.bpo)
-              p.staticDataInstnaces += p.blocks.last.staticCount
+              // fix static data instance count
+              p.staticDataInstnaces -= sb.dynamicCount - sb.staticCount
             }
           }
         }
