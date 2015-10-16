@@ -107,14 +107,20 @@ final class AnnotationType(
   }
 
   def offset(target : SkillObject) : Long = {
-    val p = typesByName(target.getTypeName).asInstanceOf[StoragePool[SkillObject, SkillObject]]
-    V64.offset(p.poolIndex) + p.offset(target)
+    if (null == target) 0L
+    else {
+      val p = typesByName(target.getTypeName).asInstanceOf[StoragePool[SkillObject, SkillObject]]
+      V64.offset(p.poolIndex) + p.offset(target)
+    }
   }
 
   def write(target : SkillObject, out : MappedOutStream) : Unit = {
-    val p = typesByName(target.getTypeName).asInstanceOf[StoragePool[SkillObject, SkillObject]]
-    out.v64(p.poolIndex)
-    out.v64(target.skillID)
+    if (null == target) out.i8(0)
+    else {
+      val p = typesByName(target.getTypeName).asInstanceOf[StoragePool[SkillObject, SkillObject]]
+      out.v64(p.poolIndex)
+      out.v64(target.skillID)
+    }
   }
 
   override def toString : String = "annotation"
