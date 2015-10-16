@@ -151,9 +151,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
                              name : String,
                              restrictions : HashSet[FieldRestriction]) : FieldDeclaration[R, T] = {
     val f = new LazyField[R, T](t, name, fieldID, this);
-    // TODO field restrictions
-    //        for (FieldRestriction<?> r : restrictions)
-    //            f.addRestriction(r);
+    f.restrictions ++= restrictions
     dataFields.append(f);
     return f;
   }
