@@ -366,8 +366,9 @@ trait SkillFileParser[SF <: SkillState] {
 
     barrier.await
 
+    // re-throw first error
     if (!errors.isEmpty()) {
-      throw new InternalError(s"${errors.size()} Job(s) crashed. First error supplied below.", errors.peek())
+      throw errors.peek()
     }
   }
 }
