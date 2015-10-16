@@ -108,11 +108,4 @@ class SkillState(
   final override def apply(idx : Int) : Access[_ <: de.ust.skill.common.scala.api.SkillObject] = types(idx)
 
   final override def length : Int = types.length
-
-  // add all known fields
-  for (p ← types.par) {
-    val missing = p.knownFields.intersect(p.dataFields.map(_.name).toSet)
-    for (s ← missing)
-      p.addKnownField(s, this)
-  }
 }

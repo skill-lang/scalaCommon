@@ -23,8 +23,7 @@ import java.util.Arrays
 sealed abstract class StoragePool[T <: B, B <: SkillObject](
   final val name : String,
   final val superPool : StoragePool[_ >: T <: B, B],
-  _typeID : Int,
-  final val knownFields : Set[String])
+  _typeID : Int)
     extends UserType[T](_typeID.ensuring(_ >= 32, "user types have IDs larger then 32")) with Access[T] {
 
   def getInstanceClass : Class[T]
@@ -159,7 +158,11 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     return f;
   }
 
-  def addKnownField[T](name : String, state : SkillState) : Unit
+  /**
+   * ensures that all known fields are present in respective arrays
+   * @note internal use only
+   */
+  def ensureKnownFields(state : SkillState) : Unit
 
   /**
    * that took part in serialization
@@ -251,14 +254,12 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 object StoragePool {
   val noTypeRestrictions = new HashSet[restrictions.TypeRestriction]
   val noFieldRestrictions = new HashSet[restrictions.FieldRestriction]
-  val noKnownFields = Set[String]()
 }
 
 abstract class BasePool[B <: SkillObject](
   _typeID : Int,
-  _name : String,
-  _knownFields : Set[String])
-    extends StoragePool[B, B](_name, null, _typeID, _knownFields) {
+  _name : String)
+    extends StoragePool[B, B](_name, null, _typeID) {
 
   final override def basePool : BasePool[B] = this
 
@@ -280,9 +281,8 @@ abstract class BasePool[B <: SkillObject](
 abstract class SubPool[T <: B, B <: SkillObject](
   _typeID : Int,
   _name : String,
-  _superPool : StoragePool[_ >: T <: B, B],
-  _knownFields : Set[String])
-    extends StoragePool[T, B](_name, _superPool, _typeID, _knownFields) {
+  _superPool : StoragePool[_ >: T <: B, B])
+    extends StoragePool[T, B](_name, _superPool, _typeID) {
 
   final override val basePool : BasePool[B] = superPool.basePool
 

@@ -9,7 +9,7 @@ import de.ust.skill.common.scala.api.CompletelyUnknownObject
  * @author Timm Felden
  */
 final class UnknownBasePool(_name : String, _typeId : Int)
-    extends BasePool[CompletelyUnknownObject](_typeId, _name, StoragePool.noKnownFields) {
+    extends BasePool[CompletelyUnknownObject](_typeId, _name) {
 
   def getInstanceClass : Class[CompletelyUnknownObject] = classOf[CompletelyUnknownObject]
 
@@ -26,7 +26,7 @@ final class UnknownBasePool(_name : String, _typeId : Int)
     }
   }
 
-  def addKnownField[T](name : String, state : SkillState) {
+  final override def ensureKnownFields(state : SkillState) {
   }
 
   def makeSubPool(name : String, typeId : Int) : SubPool[_ <: de.ust.skill.common.scala.api.CompletelyUnknownObject, CompletelyUnknownObject] = {
@@ -47,7 +47,7 @@ object UnknownBasePool {
     _superPool : StoragePool[CompletelyUnknownObject, CompletelyUnknownObject],
     _typeId : Int)
       extends SubPool[CompletelyUnknownObject, CompletelyUnknownObject](
-        _typeId, _name, _superPool, StoragePool.noKnownFields
+        _typeId, _name, _superPool
       ) {
 
     def getInstanceClass : Class[CompletelyUnknownObject] = classOf[CompletelyUnknownObject]
@@ -63,7 +63,7 @@ object UnknownBasePool {
       }
     }
 
-    def addKnownField[T](name : String, state : SkillState) {
+    final override def ensureKnownFields(state : SkillState) {
     }
 
     def makeSubPool(name : String, typeId : Int) : SubPool[_ <: CompletelyUnknownObject, CompletelyUnknownObject] = {
