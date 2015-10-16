@@ -45,8 +45,23 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     superPool.allFields ++ autoFields.iterator ++ dataFields.iterator
   else fields
 
-  def apply(index : Int) : T = {
-    ???
+  @inline
+  final def apply(idx : Int) : T = {
+    var index = idx
+    for (b ← blocks) {
+      if (index < b.dynamicCount)
+        return data(b.bpo + index)
+      else
+        index -= b.dynamicCount
+    }
+    for (sub ← typeHierarchy) {
+      val n = sub.newObjects
+      if (index < n.size)
+        return n(index)
+      else
+        index -= n.size
+    }
+    throw new IndexOutOfBoundsException
   }
 
   /**
@@ -76,6 +91,11 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
       superPool.subPools.asInstanceOf[ArrayBuffer[SubPool[_, B]]] += t
     case _ ⇒
   }
+  /**
+   * returns an iterator over this Pool and all subPools
+   */
+  protected def typeHierarchy : Seq[StoragePool[_ <: T, B]] = subPools.foldLeft(
+    Seq[StoragePool[_ <: T, B]](this))(_ ++ _.typeHierarchy)
 
   /**
    * create a sub pool for an unknown sub type
