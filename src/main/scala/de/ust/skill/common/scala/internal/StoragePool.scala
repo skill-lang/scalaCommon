@@ -36,7 +36,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   override def iterator : Iterator[T] = all
   def all : Iterator[T] = new DynamicDataIterator[T](this) ++ newDynamicInstances
 
-  def staticInstances : Iterator[T] = new StaticDataIterator[T](this)
+  def staticInstances : Iterator[T] = new StaticDataIterator[T](this) ++ newObjects.iterator
 
   def allInTypeOrder : Iterator[T] = subPools.foldLeft(staticInstances)(_ ++ _.allInTypeOrder)
 
