@@ -9,6 +9,7 @@ import de.ust.skill.common.jvm.streams.MappedOutStream
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.HashMap
+import de.ust.skill.common.scala.api.Access
 
 /**
  * the top of the actual field type hierarchy
@@ -308,4 +309,4 @@ final case class MapType[K, V](val keyType : FieldType[K], val valueType : Field
  * All user defined type instantiations inherit this. The purpose of this type is to enable useful error messages
  * in pattern matching over field types.
  */
-abstract class UserType[T <: SkillObject](_typeID : Int) extends FieldType[T](_typeID);
+abstract class UserType[T <: SkillObject](_typeID : Int) extends FieldType[T](_typeID) with Access[T];

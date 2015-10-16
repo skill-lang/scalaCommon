@@ -18,6 +18,11 @@ trait Access[T <: SkillObject] extends IndexedSeq[T] with FieldType[T] {
   val superName : Option[String]
 
   /**
+   * allocate a new instance via reflection
+   */
+  def reflectiveAllocateInstance : T
+
+  /**
    * get n'th element of dynamic type T
    *
    * @note in general this is unrelated to the skill id of the object

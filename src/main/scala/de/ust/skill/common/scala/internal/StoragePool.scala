@@ -24,7 +24,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   final val name : String,
   final val superPool : StoragePool[_ >: T <: B, B],
   _typeID : Int)
-    extends UserType[T](_typeID.ensuring(_ >= 32, "user types have IDs larger then 32")) with Access[T] {
+    extends UserType[T](_typeID.ensuring(_ >= 32, "user types have IDs larger then 32")) {
 
   def getInstanceClass : Class[T]
 
@@ -133,8 +133,6 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 
   /**
    * static fields of this type not taking any part in serialization
-   *
-   * TODO provide a sane implementation
    */
   protected[internal] val autoFields = new ArrayBuffer[AutoField[_, T]]()
 
@@ -178,11 +176,6 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     else
       data(id - 1)
   }
-
-  /**
-   * allocate a new instance via reflection
-   */
-  def reflectiveAllocateInstance : T
 
   /**
    * ensure that data is set correctly
