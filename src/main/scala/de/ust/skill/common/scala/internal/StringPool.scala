@@ -12,6 +12,7 @@ import de.ust.skill.common.scala.api.StringAccess
 import de.ust.skill.common.scala.internal.fieldTypes.StringType
 import java.nio.ByteBuffer
 import de.ust.skill.common.jvm.streams.OutStream
+import de.ust.skill.common.scala.internal.fieldTypes.V64
 
 /**
  * @author Timm Felden
@@ -92,7 +93,8 @@ final class StringPool(val in : FileInputStream)
   def read(in : InStream) : String = get(in.v64.toInt)
 
   def offset(target : String) : Long = {
-    ???
+    if (null == target) 1L
+    else V64.offset(serializationIDs(target))
   }
 
   def write(target : String, out : OutStream) : Unit = {
