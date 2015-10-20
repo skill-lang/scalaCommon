@@ -17,6 +17,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.global
 import scala.language.existentials
+import de.ust.skill.common.scala.internal.fieldTypes.MapType
 
 /**
  * Implementation of file writing and appending.
@@ -59,13 +60,23 @@ final object FileWriters {
     // TODO
   }
 
+  private final def keepField(t : FieldType[_]) : Boolean = {
+    t.typeID < 15 || (t.typeID >= 32 && t.asInstanceOf[StoragePool[_, _]].cachedSize != 0) ||
+      (t match {
+        case t : SingleBaseTypeContainer[_, _] ⇒ keepField(t.groundType)
+        case t : MapType[_, _]                 ⇒ keepField(t.keyType) && keepField(t.valueType)
+        case _                                 ⇒ false // @note other cases can not happen, because they were caught above
+      })
+  }
+
   /**
    * we require type quantification to solve type equation after partition
    */
   @inline
   private def writeRelevantFieldCount[T <: SkillObject](t : StoragePool[T, _ <: SkillObject], out : FileOutputStream) {
+
     // we drop all types and fields that refer to *unused* types
-    val (rFields, irrFields) = t.dataFields.partition(f ⇒ f.t.typeID < 32 || f.t.asInstanceOf[StoragePool[_, _]].cachedSize != 0)
+    val (rFields, irrFields) = t.dataFields.partition(f ⇒ keepField(f.t))
     out.v64(rFields.size)
     if (!irrFields.isEmpty) {
       // we have to reorder data fields, because some IDs may have changed and we have to write fields with
@@ -129,7 +140,7 @@ final object FileWriters {
     //////////////////////
     for (t ← rTypes) {
       strings.add(t.name)
-      for (f ← t.dataFields if f.t.typeID < 32 || f.t.asInstanceOf[StoragePool[_, _]].cachedSize != 0) {
+      for (f ← t.dataFields if keepField(f.t)) {
         fieldQueue.append(f)
         strings.add(f.name)
         (f.t.typeID : @switch) match {
