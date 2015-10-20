@@ -50,12 +50,17 @@ final class StringPool(val in : FileInputStream)
 
   /**
    * returns the string, that should be used
+   *
+   * @note if result is null, nothing will happen and null will be returned
    */
   def add(result : String) : String = {
-    knownStrings.find(_.equals(result)).getOrElse {
-      knownStrings.add(result)
-      result
-    }
+    if (result != null)
+      knownStrings.find(_.equals(result)).getOrElse {
+        knownStrings.add(result)
+        result
+      }
+    else
+      null
   }
 
   /**
