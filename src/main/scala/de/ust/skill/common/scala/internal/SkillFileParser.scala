@@ -242,7 +242,7 @@ trait SkillFileParser[SF <: SkillState] {
             if (sb.staticCount == sb.dynamicCount) {
               sb.staticCount = Math.min(sb.staticCount, b.bpo - sb.bpo)
               // fix static data instance count
-              p.staticDataInstnaces -= sb.dynamicCount - sb.staticCount
+              parent.staticDataInstnaces -= sb.dynamicCount - sb.staticCount
             }
           }
         }
