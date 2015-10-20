@@ -21,6 +21,11 @@ trait SkillFile extends IndexedSeq[Access[_ <: SkillObject]] {
   def iterator : Iterator[Access[_ <: SkillObject]]
 
   /**
+   * mark a target object for deletion, i.e. it will be removed from this file after the next flush operation
+   */
+  def delete(target : SkillObject) : Unit
+
+  /**
    * changes output path
    * @note in append mode, the old file will be copied to the new path; this may take some time
    */

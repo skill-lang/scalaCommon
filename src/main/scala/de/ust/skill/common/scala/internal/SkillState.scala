@@ -53,6 +53,18 @@ class SkillState(
   protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
     extends SkillFile {
 
+  /**
+   * set to true, if an object is deleted from this state to cause a state transition before trying to append to a file
+   */
+  private var dirty = false
+
+  override final def delete(target : SkillObject) {
+    if (target != null && target.skillID != 0) {
+      dirty |= target.skillID > 0
+      typesByName(target.getTypeName).delete(target)
+    }
+  }
+
   final def changeMode(newMode : WriteMode) : Unit = {
     // pointless
     if (mode == newMode)
@@ -93,7 +105,10 @@ class SkillState(
   }
 
   final def flush : Unit = mode match {
-    case Write    ⇒ FileWriters.write(this, FileOutputStream.write(path))
+    case Write ⇒ FileWriters.write(this, FileOutputStream.write(path))
+    case Append if dirty ⇒
+      changeMode(Write);
+      FileWriters.write(this, FileOutputStream.write(path))
     case Append   ⇒ FileWriters.append(this, FileOutputStream.append(path))
     case ReadOnly ⇒ throw IllegalOperation("can not flush a read only file")
   }

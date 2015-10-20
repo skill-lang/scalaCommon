@@ -21,11 +21,6 @@ abstract class SkillObject(protected var _skillID : SkillID) {
   final private[scala] def skillID_=(v : SkillID) : Unit = _skillID = v
 
   /**
-   * marks an object for deletion; it will be deleted on the next flush operation
-   */
-  final def delete : Unit = skillID = 0
-
-  /**
    * checks for a deleted mark
    */
   final def markedForDeletion : Boolean = 0 == skillID

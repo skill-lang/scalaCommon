@@ -120,10 +120,7 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
   protected var newData = new HashMap[Obj, T]()
 
   override def read(in : MappedInStream, lastChunk : Chunk) {
-    val d = owner match {
-      case p : BasePool[Obj]   ⇒ p.data
-      case p : SubPool[Obj, _] ⇒ p.data
-    }
+    val d = owner.data.asInstanceOf[Array[Obj]]
 
     val firstPosition = in.position
     try {
@@ -189,7 +186,7 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
 
   // executes pending read operations
   private def load {
-    val d = owner.data
+    val d = owner.data.asInstanceOf[Array[Obj]]
 
     var chunkIndex = 0
     while (chunkIndex < dataChunks.size) {

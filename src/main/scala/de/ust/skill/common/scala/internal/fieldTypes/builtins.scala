@@ -168,8 +168,10 @@ final case object I64 extends IntegerType[Long](10) {
   override def toString() : String = "i64"
 }
 final case object V64 extends IntegerType[Long](11) {
+  @inline
   override def read(in : InStream) = in.v64
-  override def offset(v : Long) : Long = if (0L == (v & 0xFFFFFFFFFFFFFF80L)) {
+  @inline
+  override final def offset(v : Long) : Long = if (0L == (v & 0xFFFFFFFFFFFFFF80L)) {
     1L
   } else if (0L == (v & 0xFFFFFFFFFFFFC000L)) {
     2
@@ -188,7 +190,8 @@ final case object V64 extends IntegerType[Long](11) {
   } else {
     9
   }
-  override def write(target : Long, out : MappedOutStream) : Unit = out.v64(target)
+  @inline
+  override final def write(target : Long, out : MappedOutStream) : Unit = out.v64(target)
 
   override def toString() : String = "v64"
 }

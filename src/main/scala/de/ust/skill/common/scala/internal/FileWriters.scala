@@ -141,22 +141,11 @@ final object FileWriters {
     //  @note pools.par would not be possible if it were an actual
     val lbpoMap = new Array[Int](state.types.size)
 
-    // creates map for all Bs
-    def makeLBPOMap[B <: SkillObject](p : StoragePool[_ <: B, B], lbpoMap : Array[Int], next : Int) : Int = {
-      lbpoMap(p.poolIndex) = next
-      var result = next + p.staticSize
-      for (sub ← p.subPools)
-        result = makeLBPOMap(sub, lbpoMap, result)
-
-      result
-    }
-
     //  check consistency of the state, now that we aggregated all instances
     state.check
 
     state.types.par.foreach {
       case p : BasePool[_] ⇒
-        makeLBPOMap(p, lbpoMap, 0)
         p.compress(lbpoMap)
       case _ ⇒
     }

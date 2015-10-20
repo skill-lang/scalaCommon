@@ -50,7 +50,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     var index = idx
     for (b ← blocks) {
       if (index < b.dynamicCount)
-        return data(b.bpo + index)
+        return data(b.bpo + index).asInstanceOf[T]
       else
         index -= b.dynamicCount
     }
@@ -120,6 +120,8 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 
   /**
    * sets fixed for this pool; automatically adjusts sub/super pools
+   *
+   * @note takes deletedCount into account, thus the size may decrease by fixing
    */
   def fix(setFixed : Boolean) {
     // only do something if there is action required
@@ -127,7 +129,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
       fixed = setFixed
       if (fixed) {
         subPools.foreach(_.fix(true))
-        cachedSize = subPools.foldLeft(staticSize)(_ + _.cachedSize)
+        cachedSize = subPools.foldLeft(staticSize)(_ + _.cachedSize) - deletedCount
       } else if (superPool != null) {
         superPool.fix(false)
       }
@@ -149,6 +151,25 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   @inline
   protected[internal] def staticSize : SkillID = {
     staticDataInstnaces + newObjects.length
+  }
+
+  /**
+   * number of deleted instancances currently stored in this pool
+   */
+  private var deletedCount = 0;
+  /**
+   * Delete shall only be called from skill state
+   *
+   * @param target
+   *            the object to be deleted
+   * @note we type target using the erasure directly, because the Java type system is too weak to express correct
+   *       typing, when taking the pool from a map
+   */
+  @inline
+  private[internal] final def delete(target : SkillObject) {
+    // @note we do not need null check or 0 check, because both happen in SkillState
+    target.skillID = 0
+    deletedCount += 1
   }
 
   /**
@@ -186,7 +207,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * @note this is in fact an array of [B], but all sane access will be type correct :)
    * @note internal use only!
    */
-  final var data : Array[T] = _
+  final var data : Array[B] = _
   /**
    * a total function, that will either return the correct object or null
    */
@@ -194,7 +215,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     if (id < 1 || data.length < id)
       null.asInstanceOf[T]
     else
-      data(id - 1)
+      data(id - 1).asInstanceOf[T]
   }
 
   /**
@@ -213,6 +234,8 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * update blocks to reflect actual layout of data
    */
   protected final def updateAfterCompress(lbpoMap : Array[Int]) {
+    // update pointer to data
+    this.data = basePool.data
     blocks.clear()
     // pools without instances wont be written to disk
     if (0 != cachedSize) {
@@ -221,10 +244,13 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     }
   }
 
+  @inline
   final def read(in : InStream) : T = getById(in.v64.toInt)
 
+  @inline
   final def offset(target : T) : Long = V64.offset(target.skillID)
 
+  @inline
   final def write(target : T, out : MappedOutStream) : Unit = if (null == target) out.i8(0) else out.v64(target.skillID)
 
   /**
@@ -250,7 +276,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
       bs ← blocks;
       i ← bs.bpo until bs.bpo + bs.dynamicCount
     ) {
-      f(data(i))
+      f(data(i).asInstanceOf[T])
     }
     foreachNewInstance(f)
   }
@@ -265,6 +291,16 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 object StoragePool {
   val noTypeRestrictions = new HashSet[restrictions.TypeRestriction]
   val noFieldRestrictions = new HashSet[restrictions.FieldRestriction]
+
+  // creates map for all Bs
+  final def makeLBPOMap[B <: SkillObject](p : StoragePool[_ <: B, B], lbpoMap : Array[Int], next : Int) : Int = {
+    lbpoMap(p.poolIndex) = next
+    var result = next + p.staticSize - p.deletedCount
+    for (sub ← p.subPools)
+      result = makeLBPOMap(sub, lbpoMap, result)
+
+    result
+  }
 }
 
 abstract class BasePool[B <: SkillObject](
@@ -275,18 +311,27 @@ abstract class BasePool[B <: SkillObject](
   final override def basePool : BasePool[B] = this
 
   final def compress(lbpoMap : Array[Int]) {
-    val d = Arrays.copyOf(data, cachedSize)
+    // create our part of the lbpo map
+    StoragePool.makeLBPOMap(this, lbpoMap, 0);
+
+    val tmp = data
+    allocateData
+    val d = data
+    data = tmp
     var p = 0
     val xs = allInTypeOrder
     while (xs.hasNext) {
       val i = xs.next()
-      d(p) = i
-      p += 1
-      i.skillID = p
+      if (0 != i.skillID) {
+        d(p) = i
+        p += 1
+        i.skillID = p
+      }
     }
     data = d
     updateAfterCompress(lbpoMap)
   }
+
 }
 
 abstract class SubPool[T <: B, B <: SkillObject](
@@ -297,5 +342,5 @@ abstract class SubPool[T <: B, B <: SkillObject](
 
   final override val basePool : BasePool[B] = superPool.basePool
 
-  final override def allocateData : Unit = this.data = basePool.data.asInstanceOf[Array[T]]
+  final override def allocateData : Unit = this.data = basePool.data
 }

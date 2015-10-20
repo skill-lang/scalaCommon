@@ -35,6 +35,6 @@ final class StaticDataIterator[T](private val p : StoragePool[T, _]) extends Ite
   def next() : T = {
     val r = p.data(index)
     index += 1
-    r
+    r.asInstanceOf[T]
   }
 }

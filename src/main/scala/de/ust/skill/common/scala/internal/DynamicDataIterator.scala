@@ -34,6 +34,6 @@ final class DynamicDataIterator[T](private val p : StoragePool[T, _]) extends It
   def next() : T = {
     val r = p.data(index)
     index += 1
-    r
+    r.asInstanceOf[T]
   }
 }
