@@ -32,6 +32,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * the index of this inside of the enclosing states types array
    */
   def poolIndex = typeID - 32
+  private[internal] final def typeID_=(id : Int) = __typeID = id
 
   override def iterator : Iterator[T] = all
   def all : Iterator[T] = new DynamicDataIterator[T](this) ++ newDynamicInstances

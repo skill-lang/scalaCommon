@@ -20,7 +20,9 @@ import de.ust.skill.common.scala.api.Access
  * @param typeID the skill type ID as obtained from the read file or as it would appear in the to be written file
  * @param <T> the scala type to represent instances of this field type
  */
-sealed abstract class FieldType[@specialized T](override val typeID : Int) extends api.FieldType[T] {
+sealed abstract class FieldType[@specialized T](protected var __typeID : Int) extends api.FieldType[T] {
+  final override def typeID = __typeID
+
   def toString : String
 
   /**

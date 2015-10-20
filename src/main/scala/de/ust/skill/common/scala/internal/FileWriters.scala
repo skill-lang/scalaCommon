@@ -94,8 +94,24 @@ final object FileWriters {
     }
 
     // find relevant types and fields
-    val rTypes = state.types.filter(0 != _.cachedSize)
+    val (rTypes, irrTypes) = state.types.partition(0 != _.cachedSize)
     val fieldQueue = new ArrayBuffer[FieldDeclaration[_, _]]
+
+    // reorder types and assign new IDs
+    if (!irrTypes.isEmpty) {
+      var nextID = 32
+      state.types.clear
+      for (t ← rTypes) {
+        t.typeID = nextID
+        nextID += 1
+        state.types += t
+      }
+      for (t ← irrTypes) {
+        t.typeID = nextID
+        nextID += 1
+        state.types += t
+      }
+    }
 
     /**
      *  collect String instances from known string types; this is required,
