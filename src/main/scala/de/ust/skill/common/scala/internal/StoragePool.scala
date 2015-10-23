@@ -265,6 +265,9 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     val newPool = blocks.isEmpty;
     val newField = dataFields.exists(_.dataChunks.isEmpty)
 
+    // allocate an additional slot so that we can directly use index
+    chunkMap(poolIndex) = new Array[Chunk](1 + dataFields.size)
+
     if (newPool || newInstances || newField) {
 
       // build block chunk
@@ -276,8 +279,6 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 
       // @note: if this does not hold for p; then it will not hold for p.subPools either!
       if (newInstances || !newPool) {
-        // allocate an additional slot so that we can directly use index
-        chunkMap(poolIndex) = new Array[Chunk](1 + dataFields.size)
         // build field chunks
         for (f ← dataFields) {
           val c = if (f.dataChunks.isEmpty) {
@@ -299,6 +300,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
       p.updateAfterPrepareAppend(chunkMap);
 
     // remove new objects, because they are regular objects by now
+    staticDataInstnaces += newObjects.size
     newObjects = new ArrayBuffer[T]
   }
 
@@ -399,7 +401,7 @@ abstract class BasePool[B <: SkillObject](
 
     if (newInstances) {
       // we have to resize
-      val d : Array[B] = Arrays.copyOf[B](data, size);
+      val d : Array[B] = Arrays.copyOf[B](data, cachedSize);
       var i = data.length;
 
       val is = newDynamicInstances;

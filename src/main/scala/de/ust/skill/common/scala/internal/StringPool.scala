@@ -181,8 +181,8 @@ final class StringPool(val in : FileInputStream)
     if (0 != count) {
       val end = out.mapBlock(4 * count).buffer().asIntBuffer();
       var off = 0;
-      var i = 1
-      while (i <= count) {
+      var i = 0
+      while (i < count) {
         val data = todo(i)
         off += data.length;
         end.put(off)

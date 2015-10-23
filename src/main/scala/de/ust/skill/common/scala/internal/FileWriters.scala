@@ -299,9 +299,17 @@ final object FileWriters {
 
     val (rTypes, irrTypes) = state.types.partition { p ⇒
       // new index?
-      (p.typeID - 32 >= newPoolIndex) || (
-        // new instance or field?
-        (p.size > 0) && p.dataFields.exists(f ⇒ null != chunkMap(p.poolIndex)(f.index)))
+      if (p.typeID - 32 >= newPoolIndex)
+        true
+      // new instance or field?
+      else if (p.size > 0) {
+        val cm = chunkMap(p.poolIndex)
+        if (cm != null && p.dataFields.exists(f ⇒ null != cm(f.index)))
+          true
+        else
+          false
+      } else
+        false
     }
 
     /**
@@ -349,6 +357,7 @@ final object FileWriters {
     // calculate offsets for relevant fields
     for (
       p ← state.types.par;
+      if null != chunkMap(p.poolIndex);
       f ← p.dataFields.par;
       if null != chunkMap(p.poolIndex)(f.index)
     ) f.offset
