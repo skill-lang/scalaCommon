@@ -103,7 +103,7 @@ final object FileWriters {
 
     // write field data
     for (f ← fieldQueue.par) {
-      val c = f.dataChunks.head
+      val c = f.dataChunks.last
       f.write(map.clone(c.begin.toInt, c.end.toInt))
     }
 
@@ -267,7 +267,14 @@ final object FileWriters {
   def append(state : SkillState, out : FileOutputStream) {
 
     // save the index of the first new pool
-    val newPoolIndex = state.types.indexWhere(_.blocks.isEmpty)
+    val newPoolIndex = {
+      val r = state.types.indexWhere(_.blocks.isEmpty)
+      // fix -1 result, because we want to compare against this barrier
+      if (-1 == r)
+        Integer.MAX_VALUE
+      else
+        r
+    }
 
     //////////////////////////////
     // PHASE 2: Check & Reorder //
@@ -360,7 +367,7 @@ final object FileWriters {
         fieldQueue += f
       }
 
-      if (newPool || (0 != fields && p.size > 0)) {
+      if (newPool || 0 != fields) {
 
         strings.write(p.name, out);
         val count = p.blocks.last.dynamicCount
@@ -375,21 +382,19 @@ final object FileWriters {
             if (0 != count)
               out.v64(lbpoMap(p.typeID - 32));
           }
-        } else if (null != p.superName && 0 != count) {
+        } else if (null != p.superPool && 0 != count) {
           out.v64(lbpoMap(p.typeID - 32));
         }
 
-        if (newPool && 0 == count) {
-          out.i8(0);
-        } else {
-          out.v64(fields);
-        }
+        out.v64(fields);
       }
     }
 
     // write fields
     var offset = 0;
-    for (f ← fieldQueue) {
+    val fs = fieldQueue.iterator
+    while (fs.hasNext) {
+      val f = fs.next
       out.v64(f.index)
 
       // a new field
