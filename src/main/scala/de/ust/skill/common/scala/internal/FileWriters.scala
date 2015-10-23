@@ -1,8 +1,13 @@
 package de.ust.skill.common.scala.internal
 
 import scala.annotation.switch
+import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.ExecutionContext.global
+import scala.language.existentials
+
 import de.ust.skill.common.jvm.streams.FileOutputStream
 import de.ust.skill.common.jvm.streams.OutStream
+import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.internal.fieldTypes.ConstantI16
 import de.ust.skill.common.scala.internal.fieldTypes.ConstantI32
 import de.ust.skill.common.scala.internal.fieldTypes.ConstantI64
@@ -11,13 +16,8 @@ import de.ust.skill.common.scala.internal.fieldTypes.ConstantLengthArray
 import de.ust.skill.common.scala.internal.fieldTypes.ConstantV64
 import de.ust.skill.common.scala.internal.fieldTypes.FieldType
 import de.ust.skill.common.scala.internal.fieldTypes.MapType
-import de.ust.skill.common.scala.internal.fieldTypes.SingleBaseTypeContainer
-import de.ust.skill.common.scala.api.SkillObject
-import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.global
-import scala.language.existentials
 import de.ust.skill.common.scala.internal.fieldTypes.MapType
+import de.ust.skill.common.scala.internal.fieldTypes.SingleBaseTypeContainer
 
 /**
  * Implementation of file writing and appending.
@@ -94,6 +94,32 @@ final object FileWriters {
         i += 1
       }
     }
+  }
+
+  private final def writeFieldData(
+    state : SkillState, out : FileOutputStream, offset : Int, fieldQueue : ArrayBuffer[FieldDeclaration[_, _]]) {
+    // map field data
+    val map = out.mapBlock(offset)
+
+    // write field data
+    for (f ← fieldQueue.par) {
+      val c = f.dataChunks.head
+      f.write(map.clone(c.begin.toInt, c.end.toInt))
+    }
+
+    // we are done
+    out.close()
+
+    ///////////////////////
+    // PHASE 4: Cleaning //
+    ///////////////////////
+
+    // release data structures
+    state.String.clearSearilizationIDs;
+
+    // unfix pools
+    for (t ← state.types)
+      t.fix(false)
   }
 
   final def write(state : SkillState, out : FileOutputStream) {
@@ -228,38 +254,173 @@ final object FileWriters {
       out.v64(endOffset)
 
       // update chunks and prepare write data
-      f.dataChunks.clear()
-      f.dataChunks.append(new BulkChunk(offset, endOffset, f.owner.cachedSize, 1))
+      val c = f.dataChunks(0)
+      c.begin = offset
+      c.end = endOffset
 
       offset = endOffset
     }
 
-    // map field data
-    val map = out.mapBlock(offset)
-
-    // write field data
-    for (f ← fieldQueue.par) {
-      val c = f.dataChunks.head
-      f.write(map.clone(c.begin.toInt, c.end.toInt))
-    }
-
-    // we are done
-    out.close()
-
-    ///////////////////////
-    // PHASE 4: Cleaning //
-    ///////////////////////
-
-    // release data structures
-    state.String.clearSearilizationIDs;
-
-    // unfix pools
-    for (t ← state.types)
-      t.fix(false)
+    writeFieldData(state, out, offset, fieldQueue)
   }
 
   def append(state : SkillState, out : FileOutputStream) {
-    //    collect(state)
-    ???
+
+    // save the index of the first new pool
+    val newPoolIndex = state.types.indexWhere(_.blocks.isEmpty)
+
+    //////////////////////////////
+    // PHASE 2: Check & Reorder //
+    //////////////////////////////
+
+    // @note: I know that phase 2 happens before phase 1 ;)
+    // we implement it that way to keep 
+
+    // make lbpsi map, update data map to contain dynamic instances and create serialization skill IDs for
+    // serialization
+    // index → bpsi
+    val lbpoMap = new Array[Int](state.types.size);
+    // poolOffset → fieldID → chunk
+    val chunkMap = new Array[Array[Chunk]](state.types.size)
+    state.types.par.foreach {
+      case p : BasePool[_] ⇒
+        p.fix(true)
+        makeLBPOMap(p, lbpoMap, 0)
+        p.prepareAppend(chunkMap)
+      case _ ⇒
+    }
+
+    val (rTypes, irrTypes) = state.types.partition { p ⇒
+      // new index?
+      (p.typeID - 32 >= newPoolIndex) || (
+        // new instance or field?
+        (p.size > 0) && p.dataFields.exists(f ⇒ null != chunkMap(p.poolIndex)(f.index)))
+    }
+
+    /**
+     *  collect String instances from known string types; this is required,
+     * because we use plain strings
+     * @note this is a O(σ) operation:)
+     * @note we do not use generation time type info, because we want to treat
+     * generic fields as well
+     *
+     * @todo unify type and field names in string pool, so that it is no longer required to add them here (and
+     * checks/searches should be faster that way)
+     */
+    val strings = state.String
+    //////////////////////
+    // PHASE 1: Collect //
+    //////////////////////
+    for (t ← rTypes) {
+      strings.add(t.name)
+      for (f ← t.dataFields if keepField(f.t)) {
+        strings.add(f.name)
+        (f.t.typeID : @switch) match {
+          case 14 ⇒
+            for (x ← t)
+              strings.add(f.getR(x).asInstanceOf[String])
+
+          case 15 | 17 | 18 | 19 if (f.t.asInstanceOf[SingleBaseTypeContainer[_, _]].groundType.typeID == 14) ⇒
+            t.foreach {
+              f.getR(_).asInstanceOf[Iterable[String]].foreach(strings.add)
+            }
+
+          // TODO maps
+
+          case _ ⇒
+        }
+      }
+    }
+
+    ////////////////////
+    // PHASE 3: Write //
+    ////////////////////
+
+    // write string block
+    strings.prepareAndAppend(out);
+
+    // calculate offsets for relevant fields
+    for (
+      p ← state.types.par;
+      f ← p.dataFields.par;
+      if null != chunkMap(p.poolIndex)(f.index)
+    ) f.offset
+
+    // write count of the type block
+    out.v64(rTypes.size);
+
+    // write headers
+    val fieldQueue = new ArrayBuffer[FieldDeclaration[_, _]]
+    for (p ← rTypes) {
+      // generic append
+      val newPool = p.typeID - 32 >= newPoolIndex;
+      var fields = 0
+      for (f ← p.dataFields if null != chunkMap(p.poolIndex)(f.index)) {
+        fields += 1
+        fieldQueue += f
+      }
+
+      if (newPool || (0 != fields && p.size > 0)) {
+
+        strings.write(p.name, out);
+        val count = p.blocks.last.dynamicCount
+        out.v64(count);
+
+        if (newPool) {
+          restrictions(p, out);
+          if (null == p.superPool) {
+            out.i8(0);
+          } else {
+            out.v64(p.superPool.typeID - 31);
+            if (0 != count)
+              out.v64(lbpoMap(p.typeID - 32));
+          }
+        } else if (null != p.superName && 0 != count) {
+          out.v64(lbpoMap(p.typeID - 32));
+        }
+
+        if (newPool && 0 == count) {
+          out.i8(0);
+        } else {
+          out.v64(fields);
+        }
+      }
+    }
+
+    // write fields
+    var offset = 0;
+    for (f ← fieldQueue) {
+      out.v64(f.index)
+
+      // a new field
+      if (f.dataChunks.last.isInstanceOf[BulkChunk]) {
+        strings.write(f.name, out)
+        writeType(f.t, out)
+        restrictions(f, out)
+      }
+
+      val end = offset + f.cachedOffset.toInt
+      val c = f.dataChunks.last
+      c.begin = offset
+      c.end = end
+      out.v64(end)
+      offset = end
+    }
+
+    writeFieldData(state, out, offset, fieldQueue)
+  }
+
+  /**
+   * create lbpo map using size of new objects
+   *
+   * @note for usage in an append operation
+   */
+  private final def makeLBPOMap(p : StoragePool[_, _ <: SkillObject], lbpoMap : Array[Int], next : Int) : Int = {
+    lbpoMap(p.typeID - 32) = next;
+    var result = next + p.newObjectsSize
+    for (sub ← p.subPools) {
+      result = makeLBPOMap(sub, lbpoMap, result);
+    }
+    result
   }
 }

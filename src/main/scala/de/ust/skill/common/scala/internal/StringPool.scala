@@ -113,7 +113,8 @@ final class StringPool(val in : FileInputStream)
 
   final override def toString = "string"
 
-  def prepareAndWrite(out : FileOutputStream) {
+  private def prepareSerialization {
+    // ensure all strings are present
     var i = stringPositions.length - 1
     while (i != 0) {
       get(i)
@@ -127,6 +128,10 @@ final class StringPool(val in : FileInputStream)
       serializationIDs(idMap(i)) = i
       i -= 1
     }
+  }
+
+  def prepareAndWrite(out : FileOutputStream) {
+    prepareSerialization
 
     // Insert new strings to the map;
     // this is where duplications with lazy strings will be detected and eliminated
@@ -144,9 +149,41 @@ final class StringPool(val in : FileInputStream)
     if (0 != count) {
       val end = out.mapBlock(4 * count).buffer().asIntBuffer();
       var off = 0;
-      i = 1
+      var i = 1
       while (i <= count) {
         val data = idMap(i).getBytes()
+        off += data.length;
+        end.put(off)
+        out.put(data)
+        i += 1
+      }
+    }
+  }
+
+  def prepareAndAppend(out : FileOutputStream) {
+    prepareSerialization
+
+    val todo = new ArrayBuffer[Array[Byte]]
+
+    // Insert new strings to the map;
+    // this is the place where duplications with lazy strings will be detected and eliminated
+    // this is also the place, where new instances are appended to the output file
+    for (s ← knownStrings if !serializationIDs.contains(s)) {
+      serializationIDs.put(s, idMap.size);
+      idMap += s
+      todo += s.getBytes
+    }
+
+    // count
+    val count = todo.size;
+    out.v64(count);
+    // write block, if nonempty
+    if (0 != count) {
+      val end = out.mapBlock(4 * count).buffer().asIntBuffer();
+      var off = 0;
+      var i = 1
+      while (i <= count) {
+        val data = todo(i)
         off += data.length;
         end.put(off)
         out.put(data)
@@ -165,4 +202,4 @@ final class StringPool(val in : FileInputStream)
  * Used to get rid of position tuple.
  * @author Timm Felden
  */
-final case class StringPosition(val absoluteOffset : Long, val length : Int);
+final class StringPosition(val absoluteOffset : Long, val length : Int);

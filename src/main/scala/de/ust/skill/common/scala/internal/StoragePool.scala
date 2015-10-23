@@ -16,6 +16,7 @@ import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import scala.collection.mutable.HashSet
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import java.util.Arrays
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * @author Timm Felden
@@ -35,11 +36,11 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   private[internal] final def typeID_=(id : Int) = __typeID = id
 
   override def iterator : Iterator[T] = all
-  def all : Iterator[T] = new DynamicDataIterator[T](this) ++ newDynamicInstances
+  final def all : Iterator[T] = new DynamicDataIterator[T](this) ++ newDynamicInstances
 
-  def staticInstances : Iterator[T] = new StaticDataIterator[T](this) ++ newObjects.iterator
+  final def staticInstances : Iterator[T] = new StaticDataIterator[T](this) ++ newObjects.iterator
 
-  def allInTypeOrder : Iterator[T] = subPools.foldLeft(staticInstances)(_ ++ _.allInTypeOrder)
+  final def allInTypeOrder : Iterator[T] = subPools.foldLeft(staticInstances)(_ ++ _.allInTypeOrder)
 
   final def fields : Iterator[api.FieldDeclaration[_]] = autoFields.iterator ++ dataFields.iterator
   final def allFields : Iterator[api.FieldDeclaration[_]] = if (null != superPool)
@@ -69,8 +70,10 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * All stored objects, which have exactly the type T. Objects are stored as arrays of field entries. The types of the
    *  respective fields can be retrieved using the fieldTypes map.
    */
-  protected val newObjects = new ArrayBuffer[T]()
-  protected def newDynamicInstances : Iterator[T] = subPools.foldLeft(newObjects.iterator)(_ ++ _.newDynamicInstances)
+  final protected var newObjects = new ArrayBuffer[T]()
+  final private[internal] def newObjectsSize = newObjects.size
+  final protected def newDynamicInstances : Iterator[T] = subPools.foldLeft(newObjects.iterator)(_ ++ _.newDynamicInstances)
+  final protected def newDynamicInstancesSize : Int = subPools.foldLeft(newObjects.size)(_ + _.newDynamicInstancesSize)
 
   val superName : Option[String] =
     if (null == superPool) None
@@ -242,7 +245,61 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     if (0 != cachedSize) {
       blocks.append(new Block(0, lbpoMap(poolIndex), staticSize, cachedSize))
       subPools.foreach(_.updateAfterCompress(lbpoMap))
+
+      val ds = dataFields.iterator
+
+      // reset data chunks
+      while (ds.hasNext) {
+        val d = ds.next
+        d.dataChunks.clear
+        d.dataChunks += new BulkChunk(-1, -1, cachedSize, 1)
+      }
     }
+  }
+
+  /**
+   * called after a prepare append operation to write empty the new objects buffer and to set blocks correctly
+   */
+  protected final def updateAfterPrepareAppend(chunkMap : Array[Array[Chunk]]) {
+    val newInstances = newDynamicInstances.hasNext;
+    val newPool = blocks.isEmpty;
+    val newField = dataFields.exists(_.dataChunks.isEmpty)
+
+    if (newPool || newInstances || newField) {
+
+      // build block chunk
+      val lcount = newDynamicInstancesSize
+      // //@ note this is the index into the data array and NOT the written lbpo
+      val lbpo = if (0 == lcount) 0 else (newDynamicInstances.next.skillID - 1);
+
+      blocks.append(new Block(blocks.size, lbpo, newObjects.size, lcount));
+
+      // @note: if this does not hold for p; then it will not hold for p.subPools either!
+      if (newInstances || !newPool) {
+        // allocate an additional slot so that we can directly use index
+        chunkMap(poolIndex) = new Array[Chunk](1 + dataFields.size)
+        // build field chunks
+        for (f ← dataFields) {
+          val c = if (f.dataChunks.isEmpty) {
+            new BulkChunk(-1, -1, size, blocks.size);
+          } else if (newInstances) {
+            new SimpleChunk(-1, -1, lcount, lbpo);
+          } else
+            null
+
+          if (c != null) {
+            f.addChunk(c);
+            chunkMap(poolIndex)(f.index) = c;
+          }
+        }
+      }
+    }
+    // notify sub pools
+    for (p ← subPools)
+      p.updateAfterPrepareAppend(chunkMap);
+
+    // remove new objects, because they are regular objects by now
+    newObjects = new ArrayBuffer[T]
   }
 
   @inline
@@ -333,6 +390,29 @@ abstract class BasePool[B <: SkillObject](
     updateAfterCompress(lbpoMap)
   }
 
+  final def prepareAppend(chunkMap : Array[Array[Chunk]]) {
+    val newInstances = newDynamicInstances.hasNext
+
+    // check if we have to append at all
+    if (!newInstances && !blocks.isEmpty && !dataFields.isEmpty && !dataFields.exists(_.dataChunks.isEmpty))
+      return ;
+
+    if (newInstances) {
+      // we have to resize
+      val d : Array[B] = Arrays.copyOf[B](data, size);
+      var i = data.length;
+
+      val is = newDynamicInstances;
+      while (is.hasNext) {
+        val instance = is.next;
+        d(i) = instance;
+        i += 1
+        instance.skillID = i
+      }
+      data = d;
+    }
+    updateAfterPrepareAppend(chunkMap);
+  }
 }
 
 abstract class SubPool[T <: B, B <: SkillObject](

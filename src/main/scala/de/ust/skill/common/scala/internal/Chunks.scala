@@ -13,7 +13,7 @@ import de.ust.skill.common.scala.SkillID
  *
  * @todo add abstract IO map to support parallel serialization?
  */
-sealed abstract class Chunk(val begin : Long, val end : Long, val count : SkillID);
+sealed abstract class Chunk(var begin : Long, var end : Long, val count : SkillID);
 
 /**
  * A chunk used for regular appearances of fields.
