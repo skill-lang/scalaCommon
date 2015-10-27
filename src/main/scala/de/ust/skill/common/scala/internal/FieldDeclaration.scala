@@ -219,10 +219,17 @@ final class LazyField[T : Manifest, Obj <: SkillObject](
       } catch {
         case e : BufferUnderflowException ⇒
           val lastPosition = in.position
-          throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, lastPosition)
+          throw new PoolSizeMissmatchError(
+            dataChunks.size - parts.size,
+            parts(chunk).position() + chunk.begin,
+            parts(chunk).position() + chunk.end, this, lastPosition)
       }
       if (in.asByteBuffer().remaining() != 0)
-        throw PoolSizeMissmatchError(dataChunks.size - parts.size - 1, chunk.begin, chunk.end, this, in.position())
+        throw new PoolSizeMissmatchError(
+          dataChunks.size - parts.size,
+          parts(chunk).position() + chunk.begin,
+          parts(chunk).position() + chunk.end,
+          this, in.position())
     }
     parts = null
   }
