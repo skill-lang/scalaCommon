@@ -277,6 +277,9 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
         d.dataChunks.clear
         d.dataChunks += new BulkChunk(-1, -1, cachedSize, 1)
       }
+
+      staticDataInstnaces += newObjects.size
+      this.newObjects = new ArrayBuffer[T]()
     }
   }
 
