@@ -53,14 +53,9 @@ final class StringPool(val in : FileInputStream)
    *
    * @note if result is null, nothing will happen and null will be returned
    */
-  def add(result : String) : String = {
+  def add(result : String) {
     if (result != null)
-      knownStrings.find(_.equals(result)).getOrElse {
-        knownStrings.add(result)
-        result
-      }
-    else
-      null
+      knownStrings.add(result)
   }
 
   /**
@@ -79,11 +74,8 @@ final class StringPool(val in : FileInputStream)
           in.pop
           result = new String(chars, "UTF-8")
 
-          // unify string and mark it read
-          result = knownStrings.find(_.equals(result)).getOrElse {
-            knownStrings.add(result)
-            result
-          }
+          // ensure that the string is known
+          knownStrings.add(result)
 
           idMap(index.toInt) = result
           result
@@ -135,10 +127,12 @@ final class StringPool(val in : FileInputStream)
 
     // Insert new strings to the map;
     // this is where duplications with lazy strings will be detected and eliminated
-    for (s ← knownStrings) {
+    val ks = knownStrings.iterator
+    while (ks.hasNext) {
+      val s = ks.next
       if (!serializationIDs.contains(s)) {
-        serializationIDs(s) = idMap.length
-        idMap.append(s)
+        serializationIDs.put(s, idMap.size);
+        idMap += s
       }
     }
 
@@ -168,10 +162,14 @@ final class StringPool(val in : FileInputStream)
     // Insert new strings to the map;
     // this is the place where duplications with lazy strings will be detected and eliminated
     // this is also the place, where new instances are appended to the output file
-    for (s ← knownStrings if !serializationIDs.contains(s)) {
-      serializationIDs.put(s, idMap.size);
-      idMap += s
-      todo += s.getBytes
+    val ks = knownStrings.iterator
+    while (ks.hasNext) {
+      val s = ks.next
+      if (!serializationIDs.contains(s)) {
+        serializationIDs.put(s, idMap.size);
+        idMap += s
+        todo += s.getBytes
+      }
     }
 
     // count
