@@ -230,6 +230,7 @@ final object FileWriters {
         } else {
           out.v64(1 + t.superPool.poolIndex)
           if (0 != lCount) {
+            // we have to make absolute indices relative
             out.v64(lbpoMap(t.poolIndex))
           }
         }
@@ -291,9 +292,7 @@ final object FileWriters {
     val chunkMap = new Array[Array[Chunk]](state.types.size)
     state.types.par.foreach {
       case p : BasePool[_] ⇒
-        p.fix(true)
-        makeLBPOMap(p, lbpoMap, 0)
-        p.prepareAppend(chunkMap)
+        p.prepareAppend(chunkMap, lbpoMap)
       case _ ⇒
     }
 
@@ -369,34 +368,31 @@ final object FileWriters {
     val fieldQueue = new ArrayBuffer[FieldDeclaration[_, _]]
     for (p ← rTypes) {
       // generic append
-      val newPool = p.typeID - 32 >= newPoolIndex;
+      val newPool = p.poolIndex >= newPoolIndex;
       var fields = 0
       for (f ← p.dataFields if null != chunkMap(p.poolIndex)(f.index)) {
         fields += 1
         fieldQueue += f
       }
 
-      if (newPool || 0 != fields) {
+      strings.write(p.name, out);
+      val count = p.blocks.last.dynamicCount
+      out.v64(count);
 
-        strings.write(p.name, out);
-        val count = p.blocks.last.dynamicCount
-        out.v64(count);
-
-        if (newPool) {
-          restrictions(p, out);
-          if (null == p.superPool) {
-            out.i8(0);
-          } else {
-            out.v64(p.superPool.typeID - 31);
-            if (0 != count)
-              out.v64(lbpoMap(p.typeID - 32));
-          }
-        } else if (null != p.superPool && 0 != count) {
-          out.v64(lbpoMap(p.typeID - 32));
+      if (newPool) {
+        restrictions(p, out);
+        if (null == p.superPool) {
+          out.i8(0);
+        } else {
+          out.v64(p.superPool.typeID - 31);
+          if (0 != count)
+            out.v64(lbpoMap(p.poolIndex));
         }
-
-        out.v64(fields);
+      } else if (null != p.superPool && 0 != count) {
+        out.v64(lbpoMap(p.poolIndex) - lbpoMap(p.basePool.poolIndex));
       }
+
+      out.v64(fields);
     }
 
     // write fields
@@ -422,19 +418,5 @@ final object FileWriters {
     }
 
     writeFieldData(state, out, offset, fieldQueue)
-  }
-
-  /**
-   * create lbpo map using size of new objects
-   *
-   * @note for usage in an append operation
-   */
-  private final def makeLBPOMap(p : StoragePool[_, _ <: SkillObject], lbpoMap : Array[Int], next : Int) : Int = {
-    lbpoMap(p.typeID - 32) = next;
-    var result = next + p.newObjectsSize
-    for (sub ← p.subPools) {
-      result = makeLBPOMap(sub, lbpoMap, result);
-    }
-    result
   }
 }

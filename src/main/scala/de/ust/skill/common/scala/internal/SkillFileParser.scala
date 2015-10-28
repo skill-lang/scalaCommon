@@ -214,16 +214,24 @@ trait SkillFileParser[SF <: SkillState] {
 
           // in contrast to prior implementation, bpo is the position inside of data, even if there are no actual
           // instances. We need this behavior, because that way we can cheaply calculate the number of static instances
-          val lbpo = if (null == definition.superPool) {
+          val lbpo = definition.basePool.cachedSize + (if (null == definition.superPool) {
             0
           } else if (0 != count)
             in.v64().toInt
           else
-            definition.superPool.blocks.last.bpo
+            definition.superPool.blocks.last.bpo)
+
+          // ensure that bpo is in fact inside of the parents block
+          if (null != definition.superPool) {
+            val b = definition.superPool.blocks.last
+            if (lbpo < b.bpo || b.bpo + b.dynamicCount < b.bpo)
+              throw new ParseException(in, blockCounter,
+                s"Found broken bpo: $lbpo not in [${b.bpo}; ${b.bpo + b.dynamicCount}[");
+          }
 
           // static count and cached size are updated in the resize phase
           // @note we assume that all dynamic instance are static instances as well, until we know for sure
-          definition.blocks.append(new Block(blockCounter, definition.basePool.cachedSize + lbpo, count, count))
+          definition.blocks.append(new Block(blockCounter, lbpo, count, count))
           definition.staticDataInstnaces += count
 
           resizeQueue.append(definition)
@@ -234,15 +242,18 @@ trait SkillFileParser[SF <: SkillState] {
         for (p ← resizeQueue) {
           val b = p.blocks.last
           p.cachedSize += b.dynamicCount
-          // calculate static count of our parent
-          val parent : StoragePool[_, _] = p.superPool
-          if (null != parent) {
-            val sb = parent.blocks.last
-            // this happens once or has no side effect
-            if (sb.staticCount == sb.dynamicCount) {
-              sb.staticCount = Math.min(sb.staticCount, b.bpo - sb.bpo)
-              // fix static data instance count
-              parent.staticDataInstnaces -= sb.dynamicCount - sb.staticCount
+
+          if (0 != b.dynamicCount) {
+            // calculate static count of our parent
+            val parent : StoragePool[_, _] = p.superPool
+            if (null != parent) {
+              val sb = parent.blocks.last
+              // this happens once or has no side effect
+              if (sb.staticCount == sb.dynamicCount) {
+                sb.staticCount = Math.min(sb.staticCount, b.bpo - sb.bpo)
+                // fix static data instance count
+                parent.staticDataInstnaces -= sb.dynamicCount - sb.staticCount
+              }
             }
           }
         }

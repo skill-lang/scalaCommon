@@ -53,6 +53,11 @@ class SkillState(
   protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
     extends SkillFile {
 
+  // set types owners to this
+  for (t ← types if t.isInstanceOf[BasePool[_]]) {
+    t.asInstanceOf[BasePool[_]].owner = this
+  }
+
   /**
    * set to true, if an object is deleted from this state to cause a state transition before trying to append to a file
    */

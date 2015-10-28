@@ -8,33 +8,42 @@ import scala.annotation.tailrec
  * @author Timm Felden
  */
 final class StaticDataIterator[T](private val p : StoragePool[T, _]) extends Iterator[T] {
-  var blockIndex = 0
-  val lastBlock = p.blocks.size - 1
-  var index = 0
-  var end = 0
-  for (b ← p.blocks.headOption) {
+  private var secondIndex = 0
+  private val lastBlock = p.blocks.size
+  private var index = 0
+  private var end = 0
+  while (index == end && secondIndex < lastBlock) {
+    val b = p.blocks(secondIndex)
     index = b.bpo
     end = index + b.staticCount
+    secondIndex += 1
   }
+  // mode switch, if there is no other block
+  if (index == end)
+    secondIndex = 0
 
-  @tailrec
   @inline
-  def hasNext : Boolean = {
-    if (index < end)
-      true
-    else if (blockIndex < lastBlock) {
-      blockIndex += 1
-      index = p.blocks(blockIndex).bpo
-      end = index + p.blocks(blockIndex).staticCount
-      hasNext
-    } else
-      false
-  }
+  def hasNext : Boolean = (index < end || secondIndex < p.newObjects.size);
 
   @inline
   def next() : T = {
-    val r = p.data(index)
-    index += 1
-    r.asInstanceOf[T]
+    if (index < end) {
+      val r = p.data(index)
+      index += 1
+      while (index == end && secondIndex < lastBlock) {
+        val b = p.blocks(secondIndex)
+        index = b.bpo
+        end = index + b.staticCount
+        secondIndex += 1
+      }
+      // mode switch, if there is no other block
+      if (index == end)
+        secondIndex = 0
+      r.asInstanceOf[T]
+    } else {
+      val r = p.newObjects(secondIndex)
+      secondIndex += 1
+      r.asInstanceOf[T]
+    }
   }
 }
