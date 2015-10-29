@@ -88,7 +88,7 @@ import de.ust.skill.common.scala.internal.StoragePool
   /**
    * A nonnull restricition. It will ensure that field data is non null.
    */
-  final class NonNull[T <: AnyRef] extends CheckableFieldRestriction[T] {
+  final class NonNull[T <: AnyRef] private() extends CheckableFieldRestriction[T] {
 
     override def check(value : T) {
       if (value == null)
