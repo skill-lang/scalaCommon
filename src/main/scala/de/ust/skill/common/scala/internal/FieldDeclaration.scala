@@ -1,22 +1,19 @@
 package de.ust.skill.common.scala.internal
 
-import de.ust.skill.common.scala.api
-import de.ust.skill.common.scala.api.SkillObject
-import de.ust.skill.common.scala.internal.fieldTypes.FieldType
+import java.nio.BufferUnderflowException
+
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
+import scala.collection.mutable.HashSet
+
 import de.ust.skill.common.jvm.streams.MappedInStream
 import de.ust.skill.common.jvm.streams.MappedOutStream
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.WrappedArray
-import scala.collection.mutable.ListBuffer
-import java.nio.BufferUnderflowException
+import de.ust.skill.common.scala.api
 import de.ust.skill.common.scala.api.PoolSizeMissmatchError
+import de.ust.skill.common.scala.api.SkillObject
+import de.ust.skill.common.scala.internal.fieldTypes.FieldType
+import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
-import scala.collection.mutable.HashSet
-import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
-import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
-import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
-import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 
 /**
  * runtime representation of fields
