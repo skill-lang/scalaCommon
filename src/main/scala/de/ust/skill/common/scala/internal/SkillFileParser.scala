@@ -40,8 +40,6 @@ import de.ust.skill.common.scala.SkillID
  */
 trait SkillFileParser[SF <: SkillState] {
 
-  final class LFEntry(val pool : StoragePool[_, _], val count : Int);
-
   def newPool(
     typeId : Int,
     name : String,
@@ -54,7 +52,47 @@ trait SkillFileParser[SF <: SkillState] {
                 Annotation : AnnotationType,
                 types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
                 typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]],
-                dataList : ArrayBuffer[MappedInStream]) : SF
+                dataList : ArrayBuffer[MappedInStream]) : SF;
+
+  /**
+   * Turns a field type into a preliminary type information. In case of user types, the declaration of the respective
+   *  user type may follow after the field declaration.
+   */
+  @inline
+  private final def parseFieldType(
+    in : FileInputStream,
+    types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
+    String : StringPool,
+    Annotation : AnnotationType,
+    blockCounter : Int) : FieldType[_] = (in.v64.toInt : @switch) match {
+    case 0  ⇒ ConstantI8(in.i8)
+    case 1  ⇒ ConstantI16(in.i16)
+    case 2  ⇒ ConstantI32(in.i32)
+    case 3  ⇒ ConstantI64(in.i64)
+    case 4  ⇒ ConstantV64(in.v64)
+    case 5  ⇒ Annotation
+    case 6  ⇒ BoolType
+    case 7  ⇒ I8
+    case 8  ⇒ I16
+    case 9  ⇒ I32
+    case 10 ⇒ I64
+    case 11 ⇒ V64
+    case 12 ⇒ F32
+    case 13 ⇒ F64
+    case 14 ⇒ String
+    case 15 ⇒ ConstantLengthArray(in.v64.toInt, parseFieldType(in, types, String, Annotation, blockCounter))
+    case 17 ⇒ VariableLengthArray(parseFieldType(in, types, String, Annotation, blockCounter))
+    case 18 ⇒ ListType(parseFieldType(in, types, String, Annotation, blockCounter))
+    case 19 ⇒ SetType(parseFieldType(in, types, String, Annotation, blockCounter))
+    case 20 ⇒ MapType(parseFieldType(in, types, String, Annotation, blockCounter), parseFieldType(in, types, String, Annotation, blockCounter))
+    case i ⇒ if (i >= 32) {
+      if (i - 32 < types.size) types(i.toInt - 32)
+      else throw ParseException(in, blockCounter, s"inexistent user type ${
+        i.toInt - 32
+      } (user types: ${types.map { t ⇒ s"${t.poolIndex} -> ${t.name}" }.mkString(", ")})")
+    } else throw ParseException(in, blockCounter, s"Invalid type ID: $i")
+
+  }
 
   /**
    * read a state from file
@@ -71,36 +109,6 @@ trait SkillFileParser[SF <: SkillState] {
     val Annotation = new AnnotationType(types, typesByName)
     val dataList = new ArrayBuffer[MappedInStream]()
 
-    /**
-     * Turns a field type into a preliminary type information. In case of user types, the declaration of the respective
-     *  user type may follow after the field declaration.
-     */
-    def parseFieldType : FieldType[_] = in.v64 match {
-      case 0  ⇒ ConstantI8(in.i8)
-      case 1  ⇒ ConstantI16(in.i16)
-      case 2  ⇒ ConstantI32(in.i32)
-      case 3  ⇒ ConstantI64(in.i64)
-      case 4  ⇒ ConstantV64(in.v64)
-      case 5  ⇒ Annotation
-      case 6  ⇒ BoolType
-      case 7  ⇒ I8
-      case 8  ⇒ I16
-      case 9  ⇒ I32
-      case 10 ⇒ I64
-      case 11 ⇒ V64
-      case 12 ⇒ F32
-      case 13 ⇒ F64
-      case 14 ⇒ String
-      case 15 ⇒ ConstantLengthArray(in.v64.toInt, parseFieldType)
-      case 17 ⇒ VariableLengthArray(parseFieldType)
-      case 18 ⇒ ListType(parseFieldType)
-      case 19 ⇒ SetType(parseFieldType)
-      case 20 ⇒ MapType(parseFieldType, parseFieldType)
-      case i if i >= 32 ⇒ if (i - 32 < types.size) types(i.toInt - 32)
-      else throw ParseException(in, blockCounter, s"inexistent user type ${i.toInt - 32} (user types: ${types.map { t ⇒ s"${t.poolIndex} -> ${t.name}" }.mkString(", ")})")
-      case id ⇒ throw ParseException(in, blockCounter, s"Invalid type ID: $id")
-    }
-
     // process stream
     while (!in.eof) {
 
@@ -109,19 +117,17 @@ trait SkillFileParser[SF <: SkillState] {
         val count = in.v64.toInt;
 
         if (0 != count) {
-          val offsets = new Array[Int](count);
-          var i = 0
-          while (i < count) {
-            offsets(i) = in.i32;
-            i += 1
-          }
           String.stringPositions.sizeHint(String.stringPositions.size + count)
+
+          var i = 0
           var last = 0
-          i = 0
+          var offset = 0
+          val position = in.position() + 4 * count;
           while (i < count) {
-            String.stringPositions.append(new StringPosition(in.position + last, offsets(i) - last))
+            offset = in.i32
+            String.stringPositions.append(new StringPosition(position + last, offset - last))
             String.idMap += null
-            last = offsets(i)
+            last = offset
             i += 1
           }
           in.jump(in.position + last);
@@ -235,24 +241,29 @@ trait SkillFileParser[SF <: SkillState] {
           definition.staticDataInstnaces += count
 
           resizeQueue.append(definition)
-          localFields.append(new LFEntry(definition, in.v64().toInt))
+          localFields.append(new LFEntry(definition, in.v64.toInt))
         }
 
         // resize pools, i.e. update cachedSize and staticCount
-        for (p ← resizeQueue) {
-          val b = p.blocks.last
-          p.cachedSize += b.dynamicCount
+        locally {
+          val ps = resizeQueue.iterator
+          while (ps.hasNext) {
+            val p = ps.next
+            val b = p.blocks.last
+            p.cachedSize += b.dynamicCount
 
-          if (0 != b.dynamicCount) {
-            // calculate static count of our parent
-            val parent : StoragePool[_, _] = p.superPool
-            if (null != parent) {
-              val sb = parent.blocks.last
-              // this happens once or has no side effect
-              if (sb.staticCount == sb.dynamicCount) {
-                sb.staticCount = Math.min(sb.staticCount, b.bpo - sb.bpo)
-                // fix static data instance count
-                parent.staticDataInstnaces -= sb.dynamicCount - sb.staticCount
+            if (0 != b.dynamicCount) {
+              // calculate static count of our parent
+              val parent : StoragePool[_, _] = p.superPool
+              if (null != parent) {
+                val sb = parent.blocks.last
+                // assumed static instances, minus what static instances would be, if p were the first sub pool.
+                val delta = sb.staticCount - (b.bpo - sb.bpo);
+                // if positive, then we have to subtract it from the assumed static count (local and global)
+                if (delta > 0) {
+                  sb.staticCount -= delta
+                  parent.staticDataInstnaces -= delta
+                }
               }
             }
           }
@@ -284,7 +295,7 @@ trait SkillFileParser[SF <: SkillState] {
               if (null == fieldName)
                 throw ParseException(in, blockCounter, s"Field ${p.name}#$id has a nullptr as name.")
 
-              val t = parseFieldType
+              val t = parseFieldType(in, types, String, Annotation, blockCounter)
 
               // parse field restrictions
               var fieldRestrictionCount = in.v64.toInt
@@ -309,7 +320,7 @@ trait SkillFileParser[SF <: SkillState] {
                   case 5 ⇒ restrictions.Coding(String.get(in.v64.toInt))
                   case 7 ⇒ restrictions.ConstantLengthPointer
                   case 9 ⇒ restrictions.OneOf((0 until in.v64.toInt).map(i ⇒
-                    parseFieldType match {
+                    parseFieldType(in, types, String, Annotation, blockCounter) match {
                       case t : StoragePool[_, _] ⇒ t.getInstanceClass
                       case t ⇒ throw new ParseException(in, blockCounter,
                         s"Found a one of restrictions that tries to restrict to non user type $t.", null)
@@ -362,8 +373,14 @@ trait SkillFileParser[SF <: SkillState] {
         val dc = dcs.next
         if (dc.isInstanceOf[BulkChunk]) {
           // skip blocks that do not contain data for our field
-          for (i ← 1 until dc.asInstanceOf[BulkChunk].blockCount)
-            bs.next
+          locally {
+            var i = 1
+            val last = dc.asInstanceOf[BulkChunk].blockCount
+            while (i < last) {
+              i += 1
+              bs.next
+            }
+          }
           val blockIndex = bs.next.blockIndex
           if (dc.count != 0)
             global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
@@ -384,6 +401,9 @@ trait SkillFileParser[SF <: SkillState] {
   }
 }
 
+/**
+ * a read job for a given field, block and pool
+ */
 final class Job(
     val barrier : Barrier,
     val field : FieldDeclaration[_, _],
@@ -402,3 +422,8 @@ final class Job(
     barrier.end
   }
 }
+
+/**
+ * holds number of local fields for a given pool
+ */
+final class LFEntry(val pool : StoragePool[_, _], val count : Int);
