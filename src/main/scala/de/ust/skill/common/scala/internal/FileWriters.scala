@@ -4,7 +4,6 @@ import scala.annotation.switch
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionContext.global
 import scala.language.existentials
-
 import de.ust.skill.common.jvm.streams.FileOutputStream
 import de.ust.skill.common.jvm.streams.OutStream
 import de.ust.skill.common.scala.api.SkillObject
@@ -18,12 +17,14 @@ import de.ust.skill.common.scala.internal.fieldTypes.FieldType
 import de.ust.skill.common.scala.internal.fieldTypes.MapType
 import de.ust.skill.common.scala.internal.fieldTypes.MapType
 import de.ust.skill.common.scala.internal.fieldTypes.SingleBaseTypeContainer
+import scala.annotation.tailrec
 
 /**
  * Implementation of file writing and appending.
  */
 final object FileWriters {
-  private def writeType(t : FieldType[_], out : OutStream) {
+  @inline
+  private final def writeType(t : FieldType[_], out : OutStream) {
     out.v64(t.typeID)
 
     (t.typeID : @switch) match {
@@ -50,16 +51,19 @@ final object FileWriters {
     }
   }
 
-  private def restrictions(t : StoragePool[_, _], out : OutStream) {
+  @inline
+  private final def restrictions(t : StoragePool[_, _], out : OutStream) {
     out.i8(0)
     // TODO
   }
 
-  private def restrictions(f : FieldDeclaration[_, _], out : OutStream) {
+  @inline
+  private final def restrictions(f : FieldDeclaration[_, _], out : OutStream) {
     out.i8(0)
     // TODO
   }
 
+  @inline
   private final def keepField(t : FieldType[_]) : Boolean = {
     t.typeID < 15 || (t.typeID >= 32 && t.asInstanceOf[StoragePool[_, _]].cachedSize != 0) ||
       (t match {
@@ -74,6 +78,7 @@ final object FileWriters {
    */
   @inline
   private def writeRelevantFieldCount[T <: SkillObject](t : StoragePool[T, _ <: SkillObject], out : FileOutputStream) {
+    // TODO can be done a lot more efficient with swapping and index operations
 
     // we drop all types and fields that refer to *unused* types
     val (rFields, irrFields) = t.dataFields.partition(f ⇒ keepField(f.t))
@@ -82,20 +87,29 @@ final object FileWriters {
       // we have to reorder data fields, because some IDs may have changed and we have to write fields with
       // correct IDs
       var i = 1
-      for (f ← rFields) {
-        f.index = i
-        t.dataFields.update(i - 1, f)
-        i += 1
+      locally {
+        val fs = rFields.iterator
+        while (fs.hasNext) {
+          val f = fs.next
+          f.index = i
+          t.dataFields.update(i - 1, f)
+          i += 1
+        }
       }
       // irrelevant fields get higher IDs, so that they can be ignored automatically
-      for (f ← irrFields) {
-        f.index = i
-        t.dataFields.update(i - 1, f)
-        i += 1
+      locally {
+        val fs = irrFields.iterator
+        while (fs.hasNext) {
+          val f = fs.next
+          f.index = i
+          t.dataFields.update(i - 1, f)
+          i += 1
+        }
       }
     }
   }
 
+  @inline
   private final def writeFieldData(
     state : SkillState, out : FileOutputStream, offset : Int, fieldQueue : ArrayBuffer[FieldDeclaration[_, _]]) {
     // map field data
@@ -118,16 +132,17 @@ final object FileWriters {
     state.String.clearSearilizationIDs;
 
     // unfix pools
-    for (t ← state.types)
-      t.fix(false)
+    val ts = state.types.iterator
+    while (ts.hasNext)
+      ts.next.fix(false)
   }
 
   final def write(state : SkillState, out : FileOutputStream) {
     // fix pools to make size operations constant time (happens in amortized constant time)
-    state.types.par.foreach {
-      case p : BasePool[_] ⇒
-        p.fix(true)
-      case _ ⇒
+    locally {
+      val ts = state.types.iterator
+      while (ts.hasNext)
+        ts.next.fix(true)
     }
 
     // find relevant types and fields
@@ -138,15 +153,23 @@ final object FileWriters {
     if (!irrTypes.isEmpty) {
       var nextID = 32
       state.types.clear
-      for (t ← rTypes) {
-        t.typeID = nextID
-        nextID += 1
-        state.types += t
+      locally {
+        val ts = rTypes.iterator
+        while (ts.hasNext) {
+          val t = ts.next
+          t.typeID = nextID
+          nextID += 1
+          state.types += t
+        }
       }
-      for (t ← irrTypes) {
-        t.typeID = nextID
-        nextID += 1
-        state.types += t
+      locally {
+        val ts = irrTypes.iterator
+        while (ts.hasNext) {
+          val t = ts.next
+          t.typeID = nextID
+          nextID += 1
+          state.types += t
+        }
       }
     }
 
@@ -164,24 +187,34 @@ final object FileWriters {
     //////////////////////
     // PHASE 1: Collect //
     //////////////////////
-    for (t ← rTypes) {
-      strings.add(t.name)
-      for (f ← t.dataFields if keepField(f.t)) {
-        fieldQueue.append(f)
-        strings.add(f.name)
-        (f.t.typeID : @switch) match {
-          case 14 ⇒
-            for (x ← t)
-              strings.add(f.getR(x).asInstanceOf[String])
 
-          case 15 | 17 | 18 | 19 if (f.t.asInstanceOf[SingleBaseTypeContainer[_, _]].groundType.typeID == 14) ⇒
-            t.foreach {
-              f.getR(_).asInstanceOf[Iterable[String]].foreach(strings.add)
+    locally {
+      val ts = rTypes.iterator
+      while (ts.hasNext) {
+        val t = ts.next
+        strings.add(t.name)
+
+        val fs = t.dataFields.iterator
+        while (fs.hasNext) {
+          val f = fs.next
+          if (keepField(f.t)) {
+            fieldQueue.append(f)
+            strings.add(f.name)
+            (f.t.typeID : @switch) match {
+              case 14 ⇒
+                for (x ← t)
+                  strings.add(f.getR(x).asInstanceOf[String])
+
+              case 15 | 17 | 18 | 19 if (f.t.asInstanceOf[SingleBaseTypeContainer[_, _]].groundType.typeID == 14) ⇒
+                t.foreach {
+                  f.getR(_).asInstanceOf[Iterable[String]].foreach(strings.add)
+                }
+
+              // TODO maps
+
+              case _ ⇒
             }
-
-          // TODO maps
-
-          case _ ⇒
+          }
         }
       }
     }
@@ -220,22 +253,26 @@ final object FileWriters {
       // write count of the type block
       out.v64(rTypes.length)
 
-      for (t ← rTypes) {
-        val lCount = t.blocks.head.dynamicCount
-        strings.write(t.name, out)
-        out.v64(lCount)
-        restrictions(t, out)
-        if (null == t.superPool) {
-          out.i8(0)
-        } else {
-          out.v64(1 + t.superPool.poolIndex)
-          if (0 != lCount) {
-            // we have to make absolute indices relative
-            out.v64(lbpoMap(t.poolIndex))
+      locally {
+        val ts = rTypes.iterator
+        while (ts.hasNext) {
+          val t = ts.next
+          val lCount = t.blocks.head.dynamicCount
+          strings.write(t.name, out)
+          out.v64(lCount)
+          restrictions(t, out)
+          if (null == t.superPool) {
+            out.i8(0)
+          } else {
+            out.v64(1 + t.superPool.poolIndex)
+            if (0 != lCount) {
+              // we have to make absolute indices relative
+              out.v64(lbpoMap(t.poolIndex))
+            }
           }
-        }
 
-        writeRelevantFieldCount(t, out)
+          writeRelevantFieldCount(t, out)
+        }
       }
 
       // await offsets before we can write fields
@@ -245,21 +282,25 @@ final object FileWriters {
     // write fields
     var (offset, endOffset) = (0, 0)
 
-    for (f ← fieldQueue) {
-      // write field info
-      out.v64(f.index)
-      strings.write(f.name, out)
-      writeType(f.t, out)
-      restrictions(f, out)
-      endOffset = offset + f.cachedOffset.toInt
-      out.v64(endOffset)
+    locally {
+      val fs = fieldQueue.iterator
+      while (fs.hasNext) {
+        val f = fs.next
+        // write field info
+        out.v64(f.index)
+        strings.write(f.name, out)
+        writeType(f.t, out)
+        restrictions(f, out)
+        endOffset = offset + f.cachedOffset.toInt
+        out.v64(endOffset)
 
-      // update chunks and prepare write data
-      val c = f.dataChunks(0)
-      c.begin = offset
-      c.end = endOffset
+        // update chunks and prepare write data
+        val c = f.dataChunks(0)
+        c.begin = offset
+        c.end = endOffset
 
-      offset = endOffset
+        offset = endOffset
+      }
     }
 
     writeFieldData(state, out, offset, fieldQueue)
