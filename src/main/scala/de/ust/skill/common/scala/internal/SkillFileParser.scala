@@ -230,7 +230,7 @@ trait SkillFileParser[SF <: SkillState] {
           // ensure that bpo is in fact inside of the parents block
           if (null != definition.superPool) {
             val b = definition.superPool.blocks.last
-            if (lbpo < b.bpo || b.bpo + b.dynamicCount < b.bpo)
+            if (lbpo < b.bpo || b.bpo + b.dynamicCount < lbpo)
               throw new ParseException(in, blockCounter,
                 s"Found broken bpo: $lbpo not in [${b.bpo}; ${b.bpo + b.dynamicCount}[");
           }
@@ -238,7 +238,7 @@ trait SkillFileParser[SF <: SkillState] {
           // static count and cached size are updated in the resize phase
           // @note we assume that all dynamic instance are static instances as well, until we know for sure
           definition.blocks.append(new Block(blockCounter, lbpo, count, count))
-          definition.staticDataInstnaces += count
+          definition.staticDataInstances += count
 
           resizeQueue.append(definition)
           localFields.append(new LFEntry(definition, in.v64.toInt))
@@ -262,7 +262,7 @@ trait SkillFileParser[SF <: SkillState] {
                 // if positive, then we have to subtract it from the assumed static count (local and global)
                 if (delta > 0) {
                   sb.staticCount -= delta
-                  parent.staticDataInstnaces -= delta
+                  parent.staticDataInstances -= delta
                 }
               }
             }
@@ -373,22 +373,16 @@ trait SkillFileParser[SF <: SkillState] {
         val dc = dcs.next
         if (dc.isInstanceOf[BulkChunk]) {
           // skip blocks that do not contain data for our field
-          locally {
-            var i = 1
-            val last = dc.asInstanceOf[BulkChunk].blockCount
-            while (i < last) {
-              i += 1
-              bs.next
-            }
+          var i = 1
+          val last = dc.asInstanceOf[BulkChunk].blockCount
+          while (i < last) {
+            i += 1
+            bs.next
           }
-          val blockIndex = bs.next.blockIndex
-          if (dc.count != 0)
-            global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
-        } else {
-          val blockIndex = bs.next.blockIndex
-          if (dc.count != 0)
-            global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
         }
+        val blockIndex = bs.next.blockIndex
+        if (dc.count != 0)
+          global.execute(new Job(barrier, f, dataList(blockIndex), dc, errors))
       }
     }
 

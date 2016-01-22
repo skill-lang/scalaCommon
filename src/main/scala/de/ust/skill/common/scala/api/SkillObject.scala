@@ -43,6 +43,7 @@ abstract class SkillObject(protected var _skillID : SkillID) {
    *
    * @note if field is not a distributed field of this type, then anything may happen
    */
+  @inline
   final def set[@specialized T](field : FieldDeclaration[T], value : T) {
     field.setR(this, value)
   }
@@ -54,6 +55,7 @@ abstract class SkillObject(protected var _skillID : SkillID) {
    *
    * @note if field is not a distributed field of this type, then anything may happen
    */
+  @inline
   final def get[@specialized T](field : FieldDeclaration[T]) : T = field.getR(this)
 }
 

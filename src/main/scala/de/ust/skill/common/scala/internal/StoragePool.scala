@@ -88,12 +88,18 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   /**
    * the base pool of this type hierarchy
    */
-  def basePool : BasePool[B]
+  final val basePool : BasePool[B] = if (null == superPool) this.asInstanceOf[BasePool[B]] else superPool.basePool
+
+  /**
+   * our distance to the base pool
+   */
+  final val typeHierarchyHeight : Int = if (null == superPool) 0 else superPool.typeHierarchyHeight + 1
 
   /**
    * the sub pools are constructed during construction of all storage pools of a state
    */
   private[internal] val subPools = new ArrayBuffer[SubPool[_ <: T, B]];
+
   // update sub-pool relation
   this match {
     case t : SubPool[T, B] ⇒
@@ -159,7 +165,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   /**
    * number of static instances stored in data
    */
-  protected[internal] var staticDataInstnaces : SkillID = 0
+  protected[internal] var staticDataInstances : SkillID = 0
   override def length : Int = {
     if (fixed)
       cachedSize
@@ -175,11 +181,11 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 
   @inline
   protected[internal] def staticSize : SkillID = {
-    staticDataInstnaces + newObjects.length
+    staticDataInstances + newObjects.length
   }
 
   /**
-   * number of deleted instancances currently stored in this pool
+   * number of deleted instances currently stored in this pool
    */
   private[internal] var deletedCount = 0;
   /**
@@ -278,7 +284,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
         d.dataChunks += new BulkChunk(-1, -1, cachedSize, 1)
       }
 
-      staticDataInstnaces += newObjects.size
+      staticDataInstances += newObjects.size
       this.newObjects = new ArrayBuffer[T]()
     }
   }
@@ -329,7 +335,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
       subs.next.updateAfterPrepareAppend(chunkMap, lbpoMap);
 
     // remove new objects, because they are regular objects by now
-    staticDataInstnaces += newObjects.size
+    staticDataInstances += newObjects.size
     newObjects = new ArrayBuffer[T]
   }
 
@@ -386,8 +392,6 @@ abstract class BasePool[B <: SkillObject](
     extends StoragePool[B, B](_name, null, _typeID) {
 
   protected[internal] var owner : SkillState = _
-
-  final override def basePool : BasePool[B] = this
 
   final def compress(lbpoMap : Array[Int]) {
     // create our part of the lbpo map
@@ -464,8 +468,6 @@ abstract class SubPool[T <: B, B <: SkillObject](
   _name : String,
   _superPool : StoragePool[_ >: T <: B, B])
     extends StoragePool[T, B](_name, _superPool, _typeID) {
-
-  final override val basePool : BasePool[B] = superPool.basePool
 
   final override def allocateData : Unit = this.data = basePool.data
 }

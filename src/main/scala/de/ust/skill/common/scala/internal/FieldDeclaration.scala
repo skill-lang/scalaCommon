@@ -145,8 +145,63 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
     if (lastPosition - firstPosition != lastChunk.end - lastChunk.begin)
       throw PoolSizeMissmatchError(dataChunks.size - 1, lastChunk.begin, lastChunk.end, this, lastPosition)
   }
-  override def offset : Unit = ???
-  override def write(out : MappedOutStream) : Unit = ???
+  override def offset : Unit = {
+    // compress data
+    data ++= newData
+    newData.clear()
+
+    val target = owner.data
+    var result = 0L
+    dataChunks.last match {
+      case c : SimpleChunk ⇒
+        var i = c.bpo.toInt
+        val high = i + c.count
+        while (i != high) {
+          result += t.offset(data(target(i).asInstanceOf[Obj]))
+          i += 1
+        }
+      case bci : BulkChunk ⇒
+        val blocks = owner.blocks
+        var blockIndex = 0
+        while (blockIndex < bci.blockCount) {
+          val b = blocks(blockIndex)
+          blockIndex += 1
+          var i = b.bpo
+          val end = i + b.dynamicCount
+          while (i != end) {
+            result += t.offset(data(target(i).asInstanceOf[Obj]))
+            i += 1
+          }
+        }
+    }
+    cachedOffset = result
+  }
+
+  override def write(out : MappedOutStream) : Unit = {
+    val target = owner.data
+    dataChunks.last match {
+      case c : SimpleChunk ⇒
+        var i = c.bpo.toInt
+        val high = i + c.count
+        while (i != high) {
+          t.write(data(target(i).asInstanceOf[Obj]), out)
+          i += 1
+        }
+      case bci : BulkChunk ⇒
+        val blocks = owner.blocks
+        var blockIndex = 0
+        while (blockIndex < bci.blockCount) {
+          val b = blocks(blockIndex)
+          blockIndex += 1
+          var i = b.bpo
+          val end = i + b.dynamicCount
+          while (i != end) {
+            t.write(data(target(i).asInstanceOf[Obj]), out)
+            i += 1
+          }
+        }
+    }
+  }
 
   override def getR(ref : SkillObject) : T = {
     if (-1 == ref.skillID)

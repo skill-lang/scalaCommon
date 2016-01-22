@@ -8,7 +8,7 @@ import de.ust.skill.common.scala.api.SkillObject
  * @author Timm Felden
  */
 final class TypeOrderIterator[T <: B, B <: SkillObject](p : StoragePool[T, B]) extends Iterator[T] {
-  private var ts = new TypeHierarchyIterator(p)
+  private val ts = new TypeHierarchyIterator(p)
   private var is : StaticDataIterator[T] = {
     var r : StaticDataIterator[T] = null
     while (null == r && ts.hasNext) {

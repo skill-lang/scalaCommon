@@ -7,7 +7,7 @@ import de.ust.skill.common.scala.api.SkillObject
  * Iterates efficiently over dynamic instances of a pool.
  * @author Timm Felden
  */
-final class DynamicDataIterator[T <: B, B <: SkillObject](p : StoragePool[T, B]) extends Iterator[T] {
+final class DynamicDataIterator[T <: B, B <: SkillObject](val p : StoragePool[T, B]) extends Iterator[T] {
   private var ts = new TypeHierarchyIterator(p)
   private var secondIndex = 0
   private val lastBlock = p.blocks.size

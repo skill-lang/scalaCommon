@@ -198,6 +198,8 @@ final object FileWriters {
         while (fs.hasNext) {
           val f = fs.next
           if (keepField(f.t)) {
+            if (f.isInstanceOf[LazyField[_, _]]) f.asInstanceOf[LazyField[_, _]].ensureIsLoaded
+
             fieldQueue.append(f)
             strings.add(f.name)
             (f.t.typeID : @switch) match {
@@ -369,6 +371,7 @@ final object FileWriters {
     for (t ← rTypes) {
       strings.add(t.name)
       for (f ← t.dataFields if keepField(f.t)) {
+        if (f.isInstanceOf[LazyField[_, _]]) f.asInstanceOf[LazyField[_, _]].ensureIsLoaded
         strings.add(f.name)
         (f.t.typeID : @switch) match {
           case 14 ⇒
