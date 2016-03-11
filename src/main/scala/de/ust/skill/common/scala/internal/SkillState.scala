@@ -2,10 +2,8 @@ package de.ust.skill.common.scala.internal
 
 import java.nio.file.Files
 import java.nio.file.Path
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
-
 import de.ust.skill.common.jvm.streams.FileOutputStream
 import de.ust.skill.common.scala.api.Access
 import de.ust.skill.common.scala.api.Append
@@ -17,6 +15,7 @@ import de.ust.skill.common.scala.api.SkillFile
 import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.Write
 import de.ust.skill.common.scala.api.WriteMode
+import de.ust.skill.common.jvm.streams.FileInputStream
 
 /**
  * @author Timm Felden
@@ -52,6 +51,13 @@ class SkillState(
  */
   protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
     extends SkillFile {
+
+  /**
+   * a file input stream keeping the handle to a file for potential write operations
+   *
+   * @note this is a consequence of the retarded windows file system
+   */
+  private var input : FileInputStream = String.in;
 
   // set types owners to this
   for (t ← types if t.isInstanceOf[BasePool[_]]) {
@@ -109,12 +115,22 @@ class SkillState(
     }
   }
 
+  /**
+   * @return the file input stream matching our current status
+   */
+  private def makeInStream : FileInputStream = {
+    if (null == input || !path.equals(input.path()))
+      input = FileInputStream.open(path, false);
+
+    input;
+  }
+
   final def flush : Unit = mode match {
-    case Write ⇒ FileWriters.write(this, FileOutputStream.write(path))
+    case Write ⇒ FileWriters.write(this, FileOutputStream.write(makeInStream))
     case Append if dirty ⇒
       changeMode(Write);
-      FileWriters.write(this, FileOutputStream.write(path))
-    case Append   ⇒ FileWriters.append(this, FileOutputStream.append(path))
+      FileWriters.write(this, FileOutputStream.write(makeInStream))
+    case Append   ⇒ FileWriters.append(this, FileOutputStream.append(makeInStream))
     case ReadOnly ⇒ throw IllegalOperation("can not flush a read only file")
   }
 
