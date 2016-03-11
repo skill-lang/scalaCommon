@@ -347,20 +347,29 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   @inline
   final def read(in : InStream) : T = getById(in.v64.toInt)
 
-  override def requiresClosure = true
+  override final def requiresClosure = true
 
-  override def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+  override final def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
     val id = i.skillID
-    if (0 == id || (id > 0 && data.length >= id && i == data(id - 1)))
-      return null
-    val n = basePool.owner.typesByName(i.getTypeName).newObjects
-    if (n.length >= -id && i == n(-id - 1))
-      return null;
 
-    mode match {
-      case ThrowException  ⇒ throw new ClosureException(i)
-      case RecursiveInsert ⇒ ???
-      case ReplaceByNull   ⇒ ???
+    if (0 == id ||
+      (
+        ((id - 1) >= 0) &&
+        (data.length > (id - 1)) &&
+        (i == data(id - 1))
+      )) {
+      null
+    } else {
+      val n = basePool.owner.typesByName(i.getTypeName).newObjects
+      if (id < 0 && n.length >= -id && i == n((-id) - 1)) {
+        null
+      } else {
+        mode match {
+          case ThrowException  ⇒ throw new ClosureException(i)
+          case RecursiveInsert ⇒ ???
+          case ReplaceByNull   ⇒ ???
+        }
+      }
     }
   }
 
