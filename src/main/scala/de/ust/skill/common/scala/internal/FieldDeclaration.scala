@@ -103,6 +103,8 @@ abstract class AutoField[T, Obj <: SkillObject](
     extends KnownField[T, Obj](_t, _name, _index, _owner) {
 
   final override def read(in : MappedInStream, target : Chunk) : Unit = throw new NoSuchMethodError("one can not read auto fields!")
+  // auto fields do not contribute to closures
+  final override def closure(sf : SkillState, mode : ClosureMode) : ArrayBuffer[SkillObject] = null
   final override def offset = throw new NoSuchMethodError("one can not write auto fields!")
   final override def write(out : MappedOutStream) : Unit = throw new NoSuchMethodError("one can not write auto fields!")
 }
