@@ -13,6 +13,7 @@ import de.ust.skill.common.scala.internal.fieldTypes.FieldType
 import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import de.ust.skill.common.scala.api.ClosureMode
+import de.ust.skill.common.scala.api.ClosureException
 
 /**
  * runtime representation of fields
@@ -56,8 +57,13 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
    * @return list of new objects added to the state or null if none were added
    */
   protected[internal] def closure(sf : SkillState, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
-    for (i ← owner)
-      t.closure(sf, getR(i), mode)
+    for (i ← owner) {
+      try {
+        t.closure(sf, getR(i), mode)
+      } catch {
+        case e : ClosureException ⇒ throw new ClosureException(s"in ${owner.name}.${name} @$i", e)
+      }
+    }
 
     null
   }

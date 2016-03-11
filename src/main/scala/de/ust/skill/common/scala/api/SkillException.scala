@@ -94,7 +94,11 @@ object TypeMissmatchError {
  *
  * @author Timm Felden
  */
-final case class ClosureException(cause : AnyRef) extends SkillException(s"closure failed because of ${cause.getClass.getName} $cause", null);
+final case class ClosureException(msg : String, cause : ClosureException) extends SkillException(msg, cause) {
+  def this(cause : AnyRef) {
+    this(s"closure failed because of ${cause.getClass.getName} $cause", null);
+  }
+}
 
 /**
  * Thrown if a restriction fails its check.
