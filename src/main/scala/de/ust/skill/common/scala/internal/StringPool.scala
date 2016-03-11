@@ -13,6 +13,15 @@ import de.ust.skill.common.scala.internal.fieldTypes.StringType
 import java.nio.ByteBuffer
 import de.ust.skill.common.jvm.streams.OutStream
 import de.ust.skill.common.scala.internal.fieldTypes.V64
+import de.ust.skill.common.scala.api.NoClosure
+import de.ust.skill.common.scala.api.SkillException
+import de.ust.skill.common.scala.api.ClosureException
+import de.ust.skill.common.scala.api.ThrowException
+import de.ust.skill.common.scala.api.SkillObject
+import de.ust.skill.common.scala.api.ClosureMode
+import de.ust.skill.common.scala.api.ClosureException
+import de.ust.skill.common.scala.api.RecursiveInsert
+import de.ust.skill.common.scala.api.ReplaceByNull
 
 /**
  * @author Timm Felden
@@ -88,6 +97,18 @@ final class StringPool(val in : FileInputStream)
   def iterator : Iterator[String] = knownStrings.iterator
 
   def read(in : InStream) : String = get(in.v64.toInt)
+
+  override def requiresClosure = true
+
+  override def closure(sf : SkillState, i : String, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+    mode match {
+      case ThrowException ⇒ if (!knownStrings.contains(i)) throw new ClosureException(i)
+      case RecursiveInsert ⇒ knownStrings.add(i)
+      case ReplaceByNull ⇒ ???
+    }
+    // cannot add new skill objects
+    null
+  }
 
   def offset(target : String) : Long = {
     if (null == target) 1L

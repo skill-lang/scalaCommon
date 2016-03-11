@@ -1,11 +1,9 @@
 package de.ust.skill.common.scala.internal
 
 import java.nio.BufferUnderflowException
-
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
-
 import de.ust.skill.common.jvm.streams.MappedInStream
 import de.ust.skill.common.jvm.streams.MappedOutStream
 import de.ust.skill.common.scala.api
@@ -14,6 +12,7 @@ import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.internal.fieldTypes.FieldType
 import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
+import de.ust.skill.common.scala.api.ClosureMode
 
 /**
  * runtime representation of fields
@@ -24,8 +23,8 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
   final override val t : FieldType[T],
   final override val name : String,
   /**
- * index of the field inside of dataFields; this may change, if fields get reordered by a write operation
- */
+   * index of the field inside of dataFields; this may change, if fields get reordered by a write operation
+   */
   protected[internal] final var index : Int,
   final val owner : StoragePool[Obj, _ >: Obj <: SkillObject])
     extends api.FieldDeclaration[T] {
@@ -50,6 +49,18 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
    * construction and done massively in parallel.
    */
   def read(in : MappedInStream, target : Chunk) : Unit;
+
+  /**
+   * Perform a closure operation on this field for all instances of owner.
+   *
+   * @return list of new objects added to the state or null if none were added
+   */
+  protected[internal] def closure(sf : SkillState, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+    for (i ← owner)
+      t.closure(sf, getR(i), mode)
+
+    null
+  }
 
   /**
    * offset calculation as preparation of writing data belonging to the owners last block

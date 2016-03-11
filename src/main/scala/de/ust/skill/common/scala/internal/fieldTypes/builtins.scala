@@ -10,6 +10,8 @@ import scala.collection.mutable.HashSet
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.HashMap
 import de.ust.skill.common.scala.api.Access
+import de.ust.skill.common.scala.internal.SkillState
+import de.ust.skill.common.scala.api.ClosureMode
 
 /**
  * the top of the actual field type hierarchy
@@ -29,6 +31,17 @@ sealed abstract class FieldType[@specialized T](protected var __typeID : Int) ex
    * read a singe instance
    */
   def read(in : InStream) : T
+
+  /**
+   * true, if the type can perform a closure operation
+   */
+  def requiresClosure : Boolean
+
+  /**
+   * defined, if type requiresClosure
+   * @return null, if no object was added and a buffer with added objects otherwise
+   */
+  def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject];
 
   /**
    * offset of a single instance
@@ -52,41 +65,45 @@ sealed abstract class ConstantInteger[T](_typeID : Int) extends FieldType[T](_ty
 
   final def read(in : InStream) : T = value
 
+  final def requiresClosure = false
+
+  def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject] = ???
+
   final def offset(target : T) : Long = 0
 
   final def write(target : T, out : MappedOutStream) {}
 }
 
 final case class ConstantI8(value : Byte) extends ConstantInteger[Byte](0) {
-  override def toString() : String = "const i8 = "+("%02X" format value)
+  override def toString() : String = "const i8 = " + ("%02X" format value)
   override def equals(obj : Any) = obj match {
     case ConstantI8(v) ⇒ v == value
     case _             ⇒ false
   }
 }
 final case class ConstantI16(value : Short) extends ConstantInteger[Short](1) {
-  override def toString() : String = "const i16 = "+("%04X" format value)
+  override def toString() : String = "const i16 = " + ("%04X" format value)
   override def equals(obj : Any) = obj match {
     case ConstantI16(v) ⇒ v == value
     case _              ⇒ false
   }
 }
 final case class ConstantI32(value : Int) extends ConstantInteger[Int](2) {
-  override def toString() : String = "const i32 = "+value.toHexString
+  override def toString() : String = "const i32 = " + value.toHexString
   override def equals(obj : Any) = obj match {
     case ConstantI32(v) ⇒ v == value
     case _              ⇒ false
   }
 }
 final case class ConstantI64(value : Long) extends ConstantInteger[Long](3) {
-  override def toString() : String = "const i64 = "+value.toHexString
+  override def toString() : String = "const i64 = " + value.toHexString
   override def equals(obj : Any) = obj match {
     case ConstantI64(v) ⇒ v == value
     case _              ⇒ false
   }
 }
 final case class ConstantV64(value : Long) extends ConstantInteger[Long](4) {
-  override def toString() : String = "const v64 = "+value.toHexString
+  override def toString() : String = "const v64 = " + value.toHexString
   override def equals(obj : Any) = obj match {
     case ConstantV64(v) ⇒ v == value
     case _              ⇒ false
@@ -107,6 +124,9 @@ final class AnnotationType(
       types(t.toInt - 1).getById(in.v64.toInt)
     }
   }
+
+  override final def requiresClosure = true
+  override def closure(sf : SkillState, i : SkillObject, mode : ClosureMode) : ArrayBuffer[SkillObject] = ???
 
   def offset(target : SkillObject) : Long = {
     if (null == target) 2L
@@ -131,6 +151,10 @@ final class AnnotationType(
 final case object BoolType extends FieldType[Boolean](6) {
   override def read(in : InStream) = in.i8 != 0
 
+  final def requiresClosure = false
+
+  def closure(sf : SkillState, i : Boolean, mode : ClosureMode) : ArrayBuffer[SkillObject] = ???
+
   override def offset(target : Boolean) : Long = 1
 
   override def write(target : Boolean, out : MappedOutStream) : Unit = if (target) out.i8(-1) else out.i8(0)
@@ -138,7 +162,12 @@ final case object BoolType extends FieldType[Boolean](6) {
   override def toString() : String = "bool"
 }
 
-sealed abstract class IntegerType[T](_typeID : Int) extends FieldType[T](_typeID);
+sealed abstract class IntegerType[T](_typeID : Int) extends FieldType[T](_typeID) {
+
+  final def requiresClosure = false
+
+  def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject] = ???
+}
 
 final case object I8 extends IntegerType[Byte](7) {
   override def read(in : InStream) = in.i8
@@ -200,6 +229,8 @@ final case object V64 extends IntegerType[Long](11) {
 
 final case object F32 extends FieldType[Float](12) {
   override def read(in : InStream) = in.f32
+  override final def requiresClosure = false
+  override def closure(sf : SkillState, i : Float, mode : ClosureMode) : ArrayBuffer[SkillObject] = ???
   override def offset(target : Float) : Long = 4
   override def write(target : Float, out : MappedOutStream) : Unit = out.f32(target)
 
@@ -207,6 +238,8 @@ final case object F32 extends FieldType[Float](12) {
 }
 final case object F64 extends FieldType[Double](13) {
   override def read(in : InStream) = in.f64
+  override final def requiresClosure = false
+  override def closure(sf : SkillState, i : Double, mode : ClosureMode) : ArrayBuffer[SkillObject] = ???
   override def offset(target : Double) : Long = 8
   override def write(target : Double, out : MappedOutStream) : Unit = out.f64(target)
 
@@ -226,6 +259,19 @@ sealed abstract class SingleBaseTypeContainer[T <: Iterable[Base], Base](_typeID
     extends CompoundType[T](_typeID) {
   def groundType : FieldType[Base]
 
+  override final def requiresClosure = groundType.requiresClosure
+  override final def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+    var r : ArrayBuffer[SkillObject] = null
+    for (v ← i) {
+      val tmp = groundType.closure(sf, v, mode)
+      if (null != tmp) {
+        if (null == v) r = tmp
+        else r ++= tmp
+      }
+    }
+    r
+  }
+
   override def offset(target : T) : Long =
     target.foldLeft(V64.offset(target.size)) { case (r, i) ⇒ r + groundType.offset(i) }
 
@@ -244,7 +290,7 @@ final case class ConstantLengthArray[T](val length : Int, val groundType : Field
 
   override def write(target : ArrayBuffer[T], out : MappedOutStream) : Unit = target.foreach(groundType.write(_, out))
 
-  override def toString() : String = groundType+"["+length+"]"
+  override def toString() : String = groundType + "[" + length + "]"
   override def equals(obj : Any) = obj match {
     case ConstantLengthArray(l, g) ⇒ l == length && g == groundType
     case _                         ⇒ false
@@ -256,7 +302,7 @@ final case class VariableLengthArray[T](val groundType : FieldType[T])
 
   override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
-  override def toString() : String = groundType+"[]"
+  override def toString() : String = groundType + "[]"
   override def equals(obj : Any) = obj match {
     case VariableLengthArray(g) ⇒ g == groundType
     case _                      ⇒ false
@@ -268,7 +314,7 @@ final case class ListType[T](val groundType : FieldType[T])
 
   override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
-  override def toString() : String = "list<"+groundType+">"
+  override def toString() : String = "list<" + groundType + ">"
   override def equals(obj : Any) = obj match {
     case ListType(g) ⇒ g == groundType
     case _           ⇒ false
@@ -279,7 +325,7 @@ final case class SetType[T](val groundType : FieldType[T])
 
   override def read(in : InStream) = (for (i ← 0 until in.v64.toInt) yield groundType.read(in)).to
 
-  override def toString() : String = "set<"+groundType+">"
+  override def toString() : String = "set<" + groundType + ">"
   override def equals(obj : Any) = obj match {
     case SetType(g) ⇒ g == groundType
     case _          ⇒ false
@@ -295,6 +341,31 @@ final case class MapType[K, V](val keyType : FieldType[K], val valueType : Field
     for (i ← 0 until size)
       r(keyType.read(in)) = valueType.read(in)
 
+    r
+  }
+
+  override final def requiresClosure = keyType.requiresClosure || valueType.requiresClosure
+  override final def closure(sf : SkillState, i : HashMap[K, V], mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+    var r : ArrayBuffer[SkillObject] = null
+    var tmp : ArrayBuffer[SkillObject] = null
+    val kc = keyType.requiresClosure
+    val vc = valueType.requiresClosure
+    for ((k, v) ← i) {
+      if (kc) {
+        tmp = keyType.closure(sf, k, mode)
+        if (null != tmp) {
+          if (null == v) r = tmp
+          else r ++= tmp
+        }
+      }
+      if (vc) {
+        tmp = valueType.closure(sf, v, mode)
+        if (null != tmp) {
+          if (null == v) r = tmp
+          else r ++= tmp
+        }
+      }
+    }
     r
   }
 

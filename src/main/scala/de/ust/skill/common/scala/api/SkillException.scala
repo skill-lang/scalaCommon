@@ -90,6 +90,13 @@ object TypeMissmatchError {
 }
 
 /**
+ * Thrown if a closure fails.
+ *
+ * @author Timm Felden
+ */
+final case class ClosureException(cause : AnyRef) extends SkillException(s"closure failed because of ${cause.getClass.getName} $cause", null);
+
+/**
  * Thrown if a restriction fails its check.
  *
  * @author Timm Felden

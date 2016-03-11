@@ -14,6 +14,11 @@ import de.ust.skill.common.scala.internal.fieldTypes.V64
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import de.ust.skill.common.scala.SkillID
+import de.ust.skill.common.scala.api.ClosureException
+import de.ust.skill.common.scala.api.ReplaceByNull
+import de.ust.skill.common.scala.api.ThrowException
+import de.ust.skill.common.scala.api.ClosureMode
+import de.ust.skill.common.scala.api.RecursiveInsert
 
 /**
  * @author Timm Felden
@@ -217,9 +222,9 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * add a field to the pool, known fields are treated specially
    */
   def addField[R : Manifest](fieldID : Int,
-                             t : FieldType[R],
-                             name : String,
-                             restrictions : HashSet[FieldRestriction]) : FieldDeclaration[R, T] = {
+    t : FieldType[R],
+    name : String,
+    restrictions : HashSet[FieldRestriction]) : FieldDeclaration[R, T] = {
     val f = new LazyField[R, T](t, name, fieldID, this);
     f.restrictions ++= restrictions
     dataFields.append(f);
@@ -341,6 +346,23 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 
   @inline
   final def read(in : InStream) : T = getById(in.v64.toInt)
+
+  override def requiresClosure = true
+
+  override def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+    val id = i.skillID
+    if (0 == id || (id > 0 && data.length >= id && i == data(id - 1)))
+      return null
+    val n = basePool.owner.typesByName(i.getTypeName).newObjects
+    if (n.length >= -id && i == n(-id - 1))
+      return null;
+
+    mode match {
+      case ThrowException  ⇒ throw new ClosureException(i)
+      case RecursiveInsert ⇒ ???
+      case ReplaceByNull   ⇒ ???
+    }
+  }
 
   @inline
   final def offset(target : T) : Long = V64.offset(target.skillID)

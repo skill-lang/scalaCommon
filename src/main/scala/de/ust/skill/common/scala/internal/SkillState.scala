@@ -16,6 +16,9 @@ import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.Write
 import de.ust.skill.common.scala.api.WriteMode
 import de.ust.skill.common.jvm.streams.FileInputStream
+import de.ust.skill.common.scala.api.ClosureMode
+import de.ust.skill.common.scala.api.NoClosure
+import de.ust.skill.common.scala.api.ThrowException
 
 /**
  * @author Timm Felden
@@ -27,28 +30,28 @@ class SkillState(
   var path : Path,
 
   /**
- *  current write mode
- */
+   *  current write mode
+   */
   var mode : WriteMode,
 
   /**
- * strings stored in this file
- */
+   * strings stored in this file
+   */
   override val String : StringPool,
 
   /**
- * annotation type used for annotations RTTI
- */
+   * annotation type used for annotations RTTI
+   */
   protected[internal] val annotationType : fieldTypes.AnnotationType,
 
   /**
- * types stored in this file
- */
+   * types stored in this file
+   */
   protected[internal] val types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
 
   /**
- * types by skill name
- */
+   * types by skill name
+   */
   protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
     extends SkillFile {
 
@@ -115,6 +118,18 @@ class SkillState(
     }
   }
 
+  def closure(mode : ClosureMode) {
+    mode match {
+      case NoClosure ⇒ // done
+      case ThrowException ⇒
+        for (
+          p ← types.par;
+          f ← p.dataFields.par;
+          if f.t.requiresClosure
+        ) f.closure(this, ThrowException)
+    }
+  }
+
   /**
    * @return the file input stream matching our current status
    */
@@ -125,17 +140,20 @@ class SkillState(
     input;
   }
 
-  final def flush : Unit = mode match {
-    case Write ⇒ FileWriters.write(this, FileOutputStream.write(makeInStream))
-    case Append if dirty ⇒
-      changeMode(Write);
-      FileWriters.write(this, FileOutputStream.write(makeInStream))
-    case Append   ⇒ FileWriters.append(this, FileOutputStream.append(makeInStream))
-    case ReadOnly ⇒ throw IllegalOperation("can not flush a read only file")
+  final def flush(closureMode : ClosureMode = NoClosure) {
+    closure(closureMode)
+    mode match {
+      case Write ⇒ FileWriters.write(this, FileOutputStream.write(makeInStream))
+      case Append if dirty ⇒
+        changeMode(Write);
+        FileWriters.write(this, FileOutputStream.write(makeInStream))
+      case Append   ⇒ FileWriters.append(this, FileOutputStream.append(makeInStream))
+      case ReadOnly ⇒ throw IllegalOperation("can not flush a read only file")
+    }
   }
 
   final def close : Unit = {
-    flush
+    flush()
     changeMode(ReadOnly)
   }
 
