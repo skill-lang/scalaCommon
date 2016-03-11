@@ -101,11 +101,8 @@ final class StringPool(val in : FileInputStream)
   override def requiresClosure = true
 
   override def closure(sf : SkillState, i : String, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
-    mode match {
-      case ThrowException ⇒ if (!knownStrings.contains(i)) throw new ClosureException(i)
-      case RecursiveInsert ⇒ knownStrings.add(i)
-      case ReplaceByNull ⇒ ???
-    }
+    // always add, write would add anyways
+    knownStrings.add(i)
     // cannot add new skill objects
     null
   }

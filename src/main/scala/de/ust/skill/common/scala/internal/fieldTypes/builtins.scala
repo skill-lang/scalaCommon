@@ -261,6 +261,8 @@ sealed abstract class SingleBaseTypeContainer[T <: Iterable[Base], Base](_typeID
 
   override final def requiresClosure = groundType.requiresClosure
   override final def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+    if (null == i) return null;
+
     var r : ArrayBuffer[SkillObject] = null
     for (v ← i) {
       val tmp = groundType.closure(sf, v, mode)
@@ -346,6 +348,8 @@ final case class MapType[K, V](val keyType : FieldType[K], val valueType : Field
 
   override final def requiresClosure = keyType.requiresClosure || valueType.requiresClosure
   override final def closure(sf : SkillState, i : HashMap[K, V], mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+    if (null == i) return null;
+    
     var r : ArrayBuffer[SkillObject] = null
     var tmp : ArrayBuffer[SkillObject] = null
     val kc = keyType.requiresClosure

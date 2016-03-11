@@ -350,6 +350,8 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   override final def requiresClosure = true
 
   override final def closure(sf : SkillState, i : T, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
+    if (null == i) return null;
+
     val id = i.skillID
 
     if (0 == id ||
