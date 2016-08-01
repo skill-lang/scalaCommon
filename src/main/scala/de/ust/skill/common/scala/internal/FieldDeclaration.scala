@@ -24,8 +24,8 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
   final override val t : FieldType[T],
   final override val name : String,
   /**
-   * index of the field inside of dataFields; this may change, if fields get reordered by a write operation
-   */
+ * index of the field inside of dataFields; this may change, if fields get reordered by a write operation
+ */
   protected[internal] final var index : Int,
   final val owner : StoragePool[Obj, _ >: Obj <: SkillObject])
     extends api.FieldDeclaration[T] {
@@ -44,6 +44,10 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
     if (!rs.isEmpty)
       owner.foreach { x ⇒ rs.foreach(_.check(x.get(this))) }
   }
+  /**
+   * ensures existence of all known restrictions
+   */
+  protected[internal] def createKnownRestrictions : Unit = {}
 
   /**
    * Read data from a mapped input stream and set it accordingly. This is invoked at the very end of state

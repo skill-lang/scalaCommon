@@ -364,6 +364,16 @@ trait SkillFileParser[SF <: SkillState] {
   final protected def triggerFieldDeserialization(
     types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
     dataList : ArrayBuffer[MappedInStream]) {
+
+    // ensure that known restrictions exist
+    for (
+      t ← types.par;
+      f ← t.dataFields ++ t.autoFields
+    ) {
+      f.createKnownRestrictions
+    }
+
+    // read eager fields
     val errors = new ConcurrentLinkedQueue[Throwable]
     val barrier = new Barrier
     for (t ← types.par; f ← t.dataFields.par) {
