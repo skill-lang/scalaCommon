@@ -64,7 +64,7 @@ class SkillState(
 
   // set types owners to this
   for (t ← types if t.isInstanceOf[BasePool[_]]) {
-    t.asInstanceOf[BasePool[_]].owner = this
+    t.asInstanceOf[BasePool[_]]._owner = this
   }
 
   /**
@@ -159,7 +159,11 @@ class SkillState(
 
   final override def iterator : Iterator[Access[_ <: de.ust.skill.common.scala.api.SkillObject]] = types.iterator
 
+  // access type by index
   final override def apply(idx : Int) : Access[_ <: de.ust.skill.common.scala.api.SkillObject] = types(idx)
+
+  // access type by name
+  final def apply(name : String) : StoragePool[_ <: de.ust.skill.common.scala.api.SkillObject, _ <: de.ust.skill.common.scala.api.SkillObject] = typesByName(name)
 
   final override def length : Int = types.length
 }

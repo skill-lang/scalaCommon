@@ -222,9 +222,9 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    * add a field to the pool, known fields are treated specially
    */
   def addField[R : Manifest](fieldID : Int,
-    t : FieldType[R],
-    name : String,
-    restrictions : HashSet[FieldRestriction]) : FieldDeclaration[R, T] = {
+                             t : FieldType[R],
+                             name : String,
+                             restrictions : HashSet[FieldRestriction]) : FieldDeclaration[R, T] = {
     val f = new LazyField[R, T](t, name, fieldID, this);
     f.restrictions ++= restrictions
     dataFields.append(f);
@@ -358,8 +358,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
       (
         ((id - 1) >= 0) &&
         (data.length > (id - 1)) &&
-        (i == data(id - 1))
-      )) {
+        (i == data(id - 1)))) {
       null
     } else {
       val n = basePool.owner.typesByName(i.getTypeName).newObjects
@@ -419,12 +418,29 @@ object StoragePool {
   }
 }
 
+/**
+ * Singletons instantiate this trait to improve the API.
+ *
+ * @author Timm Felden
+ */
+trait SingletonStoragePool[T <: B, B <: SkillObject] extends StoragePool[T, B] {
+
+  final lazy val theInstance = if (staticInstances.hasNext) {
+    staticInstances.next
+  } else {
+    reflectiveAllocateInstance
+  }
+  final def get = theInstance
+
+}
+
 abstract class BasePool[B <: SkillObject](
   _typeID : Int,
   _name : String)
     extends StoragePool[B, B](_name, null, _typeID) {
 
-  protected[internal] var owner : SkillState = _
+  protected[internal] var _owner : SkillState = _
+  def owner : SkillState = _owner
 
   final def compress(lbpoMap : Array[Int]) {
     // create our part of the lbpo map
