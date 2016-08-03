@@ -156,7 +156,7 @@ final case class Coding(val kind : String) extends FieldRestriction(5);
 /**
  * This restriction disables variable length coding of references.
  */
-object ConstantLengthPointer extends FieldRestriction(7) {
+case object ConstantLengthPointer extends FieldRestriction(7) {
   def apply = this
 }
 
