@@ -47,7 +47,7 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
   /**
    * ensures existence of all known restrictions
    */
-  protected[internal] def createKnownRestrictions : Unit = {}
+  def createKnownRestrictions {};
 
   /**
    * Read data from a mapped input stream and set it accordingly. This is invoked at the very end of state
