@@ -112,11 +112,7 @@ final class StringPool(val in : FileInputStream)
     else V64.offset(serializationIDs(target))
   }
 
-  def write(target : String, out : OutStream) : Unit = {
-    if (null == target) out.i8(0)
-    else out.v64(serializationIDs(target))
-  }
-  override def write(target : String, out : MappedOutStream) : Unit = {
+  override def write(target : String, out : OutStream) : Unit = {
     if (null == target) out.i8(0)
     else out.v64(serializationIDs(target))
   }

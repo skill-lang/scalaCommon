@@ -46,5 +46,5 @@ final class InterfacePool[T <: B, B <: SkillObject](
 
   def offset(target : T) : Long = throw new NoSuchMethodError("Interfaces do not participate in serialization.")
   def read(in : de.ust.skill.common.jvm.streams.InStream) : T = throw new NoSuchMethodError("Interfaces do not participate in serialization.")
-  def write(target : T, out : de.ust.skill.common.jvm.streams.MappedOutStream) : Unit = throw new NoSuchMethodError("Interfaces do not participate in serialization.")
+  def write(target : T, out : de.ust.skill.common.jvm.streams.OutStream) : Unit = throw new NoSuchMethodError("Interfaces do not participate in serialization.")
 }

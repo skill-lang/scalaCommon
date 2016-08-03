@@ -5,13 +5,14 @@ import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.internal.StoragePool
 import de.ust.skill.common.scala.api
 import de.ust.skill.common.jvm.streams.InStream
-import de.ust.skill.common.jvm.streams.MappedOutStream
+import de.ust.skill.common.jvm.streams.OutStream
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.HashMap
 import de.ust.skill.common.scala.api.Access
 import de.ust.skill.common.scala.internal.SkillState
 import de.ust.skill.common.scala.api.ClosureMode
+import de.ust.skill.common.jvm.streams.OutStream
 
 /**
  * the top of the actual field type hierarchy
@@ -51,7 +52,7 @@ sealed abstract class FieldType[@specialized T](protected var __typeID : Int) ex
   /**
    * write a single instance
    */
-  def write(target : T, out : MappedOutStream) : Unit
+  def write(target : T, out : OutStream) : Unit
 
   override def equals(obj : Any) = obj match {
     case o : FieldType[_] ⇒ o.typeID == typeID
@@ -71,7 +72,7 @@ sealed abstract class ConstantInteger[T](_typeID : Int) extends FieldType[T](_ty
 
   final def offset(target : T) : Long = 0
 
-  final def write(target : T, out : MappedOutStream) {}
+  final def write(target : T, out : OutStream) {}
 }
 
 final case class ConstantI8(value : Byte) extends ConstantInteger[Byte](0) {
@@ -136,7 +137,7 @@ final class AnnotationType(
     }
   }
 
-  def write(target : SkillObject, out : MappedOutStream) : Unit = {
+  def write(target : SkillObject, out : OutStream) : Unit = {
     if (null == target) out.i16(0)
     else {
       val p = typesByName(target.getTypeName).asInstanceOf[StoragePool[SkillObject, SkillObject]]
@@ -157,7 +158,7 @@ final case object BoolType extends FieldType[Boolean](6) {
 
   override def offset(target : Boolean) : Long = 1
 
-  override def write(target : Boolean, out : MappedOutStream) : Unit = if (target) out.i8(-1) else out.i8(0)
+  override def write(target : Boolean, out : OutStream) : Unit = if (target) out.i8(-1) else out.i8(0)
 
   override def toString() : String = "bool"
 }
@@ -172,7 +173,7 @@ sealed abstract class IntegerType[T](_typeID : Int) extends FieldType[T](_typeID
 final case object I8 extends IntegerType[Byte](7) {
   override def read(in : InStream) = in.i8
   override def offset(target : Byte) : Long = 1
-  override def write(target : Byte, out : MappedOutStream) : Unit = out.i8(target)
+  override def write(target : Byte, out : OutStream) : Unit = out.i8(target)
 
   override def toString() : String = "i8"
 }
@@ -180,21 +181,21 @@ final case object I8 extends IntegerType[Byte](7) {
 final case object I16 extends IntegerType[Short](8) {
   override def read(in : InStream) = in.i16
   override def offset(target : Short) : Long = 2
-  override def write(target : Short, out : MappedOutStream) : Unit = out.i16(target)
+  override def write(target : Short, out : OutStream) : Unit = out.i16(target)
 
   override def toString() : String = "i16"
 }
 final case object I32 extends IntegerType[Int](9) {
   override def read(in : InStream) = in.i32
   override def offset(target : Int) : Long = 4
-  override def write(target : Int, out : MappedOutStream) : Unit = out.i32(target)
+  override def write(target : Int, out : OutStream) : Unit = out.i32(target)
 
   override def toString() : String = "i32"
 }
 final case object I64 extends IntegerType[Long](10) {
   override def read(in : InStream) = in.i64
   override def offset(target : Long) : Long = 8
-  override def write(target : Long, out : MappedOutStream) : Unit = out.i64(target)
+  override def write(target : Long, out : OutStream) : Unit = out.i64(target)
 
   override def toString() : String = "i64"
 }
@@ -222,7 +223,7 @@ final case object V64 extends IntegerType[Long](11) {
     9
   }
   @inline
-  override final def write(target : Long, out : MappedOutStream) : Unit = out.v64(target)
+  override final def write(target : Long, out : OutStream) : Unit = out.v64(target)
 
   override def toString() : String = "v64"
 }
@@ -232,7 +233,7 @@ final case object F32 extends FieldType[Float](12) {
   override final def requiresClosure = false
   override def closure(sf : SkillState, i : Float, mode : ClosureMode) : ArrayBuffer[SkillObject] = ???
   override def offset(target : Float) : Long = 4
-  override def write(target : Float, out : MappedOutStream) : Unit = out.f32(target)
+  override def write(target : Float, out : OutStream) : Unit = out.f32(target)
 
   override def toString() : String = "f32"
 }
@@ -241,7 +242,7 @@ final case object F64 extends FieldType[Double](13) {
   override final def requiresClosure = false
   override def closure(sf : SkillState, i : Double, mode : ClosureMode) : ArrayBuffer[SkillObject] = ???
   override def offset(target : Double) : Long = 8
-  override def write(target : Double, out : MappedOutStream) : Unit = out.f64(target)
+  override def write(target : Double, out : OutStream) : Unit = out.f64(target)
 
   override def toString() : String = "f64"
 }
@@ -277,7 +278,7 @@ sealed abstract class SingleBaseTypeContainer[T <: Iterable[Base], Base](_typeID
   override def offset(target : T) : Long =
     target.foldLeft(V64.offset(target.size)) { case (r, i) ⇒ r + groundType.offset(i) }
 
-  override def write(target : T, out : MappedOutStream) : Unit = {
+  override def write(target : T, out : OutStream) : Unit = {
     out.v64(target.size)
     target.foreach(groundType.write(_, out))
   }
@@ -290,7 +291,7 @@ final case class ConstantLengthArray[T](val length : Int, val groundType : Field
 
   override def offset(target : ArrayBuffer[T]) : Long = target.foldLeft(0L) { case (r, i) ⇒ r + groundType.offset(i) }
 
-  override def write(target : ArrayBuffer[T], out : MappedOutStream) : Unit = target.foreach(groundType.write(_, out))
+  override def write(target : ArrayBuffer[T], out : OutStream) : Unit = target.foreach(groundType.write(_, out))
 
   override def toString() : String = groundType + "[" + length + "]"
   override def equals(obj : Any) = obj match {
@@ -376,7 +377,7 @@ final case class MapType[K, V](val keyType : FieldType[K], val valueType : Field
   override def offset(target : HashMap[K, V]) : Long =
     target.foldLeft(V64.offset(target.size)) { case (r, (k, v)) ⇒ r + keyType.offset(k) + valueType.offset(v) }
 
-  override def write(target : HashMap[K, V], out : MappedOutStream) : Unit = {
+  override def write(target : HashMap[K, V], out : OutStream) : Unit = {
     out.v64(target.size)
     for ((k, v) ← target) {
       keyType.write(k, out)

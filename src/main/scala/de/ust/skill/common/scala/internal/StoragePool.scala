@@ -1,24 +1,26 @@
 package de.ust.skill.common.scala.internal
 
 import java.util.Arrays
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
+
 import de.ust.skill.common.jvm.streams.InStream
 import de.ust.skill.common.jvm.streams.MappedOutStream
+import de.ust.skill.common.scala.SkillID
 import de.ust.skill.common.scala.api
-import de.ust.skill.common.scala.api.Access
+import de.ust.skill.common.scala.api.ClosureException
+import de.ust.skill.common.scala.api.ClosureMode
+import de.ust.skill.common.scala.api.RecursiveInsert
+import de.ust.skill.common.scala.api.ReplaceByNull
 import de.ust.skill.common.scala.api.SkillObject
+import de.ust.skill.common.scala.api.ThrowException
 import de.ust.skill.common.scala.internal.fieldTypes.FieldType
 import de.ust.skill.common.scala.internal.fieldTypes.UserType
 import de.ust.skill.common.scala.internal.fieldTypes.V64
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
-import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
-import de.ust.skill.common.scala.SkillID
-import de.ust.skill.common.scala.api.ClosureException
-import de.ust.skill.common.scala.api.ReplaceByNull
-import de.ust.skill.common.scala.api.ThrowException
-import de.ust.skill.common.scala.api.ClosureMode
-import de.ust.skill.common.scala.api.RecursiveInsert
+import de.ust.skill.common.jvm.streams.OutStream
+import de.ust.skill.common.scala.api.TypeSystemError
 
 /**
  * @author Timm Felden
@@ -378,7 +380,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   final def offset(target : T) : Long = V64.offset(target.skillID)
 
   @inline
-  final def write(target : T, out : MappedOutStream) : Unit = if (null == target) out.i8(0) else out.v64(target.skillID)
+  final def write(target : T, out : OutStream) : Unit = if (null == target) out.i8(0) else out.v64(target.skillID)
 
   /**
    * override stupid inherited equals method
@@ -425,13 +427,26 @@ object StoragePool {
  */
 trait SingletonStoragePool[T <: B, B <: SkillObject] extends StoragePool[T, B] {
 
-  final lazy val theInstance = if (staticInstances.hasNext) {
-    staticInstances.next
-  } else {
-    reflectiveAllocateInstance
-  }
+  final lazy val theInstance = reflectiveAllocateInstance
   final def get = theInstance
 
+  final override def allocateInstances {
+    for (b ← blocks.par) {
+      var i : SkillID = b.bpo
+      val last = i + b.staticCount
+      while (i < last) {
+        if (-1 == theInstance.skillID) {
+          data(i) = theInstance
+          this.theInstance.skillID = i
+          // instance is not a new object (it may have been accessed already)
+          this.newObjects.clear()
+        } else {
+          throw TypeSystemError(s"found a second instance of a singleton in type $name. First: ${theInstance.skillID}, Second: $i")
+        }
+        i += 1
+      }
+    }
+  }
 }
 
 abstract class BasePool[B <: SkillObject](

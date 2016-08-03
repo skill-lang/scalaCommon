@@ -1,9 +1,11 @@
 package de.ust.skill.common.scala.internal
 
 import scala.annotation.switch
+import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionContext.global
 import scala.language.existentials
+
 import de.ust.skill.common.jvm.streams.FileOutputStream
 import de.ust.skill.common.jvm.streams.OutStream
 import de.ust.skill.common.scala.api.SkillObject
@@ -14,10 +16,14 @@ import de.ust.skill.common.scala.internal.fieldTypes.ConstantI8
 import de.ust.skill.common.scala.internal.fieldTypes.ConstantLengthArray
 import de.ust.skill.common.scala.internal.fieldTypes.ConstantV64
 import de.ust.skill.common.scala.internal.fieldTypes.FieldType
+import de.ust.skill.common.scala.internal.fieldTypes.I64
 import de.ust.skill.common.scala.internal.fieldTypes.MapType
 import de.ust.skill.common.scala.internal.fieldTypes.MapType
 import de.ust.skill.common.scala.internal.fieldTypes.SingleBaseTypeContainer
-import scala.annotation.tailrec
+import de.ust.skill.common.scala.internal.restrictions.Coding
+import de.ust.skill.common.scala.internal.restrictions.DefaultRestriction
+import de.ust.skill.common.scala.internal.restrictions.OneOf
+import de.ust.skill.common.scala.internal.restrictions.Range._
 
 /**
  * Implementation of file writing and appending.
@@ -58,9 +64,29 @@ final object FileWriters {
   }
 
   @inline
-  private final def restrictions(f : FieldDeclaration[_, _], out : OutStream) {
-    out.i8(0)
-    // TODO
+  private final def restrictions[T](f : FieldDeclaration[T, _], out : OutStream, state : SkillState) {
+    out.v64(f.restrictions.size)
+    for (r ← f.restrictions) {
+      out.v64(r.id)
+      r match {
+        case r : DefaultRestriction[T] ⇒
+          r.value match {
+            case v : SkillObject ⇒ out.v64(state.typesByName(v.getTypeName).typeID)
+            case v               ⇒ f.t.write(v, out);
+          }
+
+        case RangeI8(l, h)                ⇒ out.i8(l); out.i8(h);
+        case RangeI16(l, h)               ⇒ out.i16(l); out.i16(h);
+        case RangeI32(l, h)               ⇒ out.i32(l); out.i32(h);
+        case RangeI64(l, h) if f.t == I64 ⇒ out.i64(l); out.i64(h);
+        case RangeI64(l, h)               ⇒ out.v64(l); out.v64(h);
+        case RangeF32(l, h)               ⇒ out.f32(l); out.f32(h);
+        case RangeF64(l, h)               ⇒ out.f64(l); out.f64(h);
+        case Coding(s)                    ⇒ state.String.write(s, out)
+        case r : OneOf[SkillObject]       ⇒ r.types.foreach(c ⇒ out.v64(state.typesByName(c.getName.toLowerCase).typeID))
+        case _                            ⇒ // epsilon 
+      }
+    }
   }
 
   @inline
@@ -292,7 +318,7 @@ final object FileWriters {
         out.v64(f.index)
         strings.write(f.name, out)
         writeType(f.t, out)
-        restrictions(f, out)
+        restrictions(f, out, state)
         endOffset = offset + f.cachedOffset.toInt
         out.v64(endOffset)
 
@@ -450,7 +476,7 @@ final object FileWriters {
       if (f.dataChunks.last.isInstanceOf[BulkChunk]) {
         strings.write(f.name, out)
         writeType(f.t, out)
-        restrictions(f, out)
+        restrictions(f, out, state)
       }
 
       val end = offset + f.cachedOffset.toInt

@@ -2,15 +2,18 @@ package de.ust.skill.common.scala.internal
 
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentLinkedQueue
+
 import scala.annotation.switch
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 import scala.concurrent.ExecutionContext.Implicits.global
+
 import de.ust.skill.common.jvm.streams.FileInputStream
 import de.ust.skill.common.jvm.streams.MappedInStream
 import de.ust.skill.common.scala.api.ParseException
 import de.ust.skill.common.scala.api.SkillException
+import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.WriteMode
 import de.ust.skill.common.scala.internal.fieldTypes.AnnotationType
 import de.ust.skill.common.scala.internal.fieldTypes.BoolType
@@ -32,8 +35,6 @@ import de.ust.skill.common.scala.internal.fieldTypes.MapType
 import de.ust.skill.common.scala.internal.fieldTypes.SetType
 import de.ust.skill.common.scala.internal.fieldTypes.V64
 import de.ust.skill.common.scala.internal.fieldTypes.VariableLengthArray
-import de.ust.skill.common.scala.api.SkillObject
-import de.ust.skill.common.scala.SkillID
 
 /**
  * @author Timm Felden
@@ -295,7 +296,7 @@ trait SkillFileParser[SF <: SkillState] {
               if (null == fieldName)
                 throw ParseException(in, blockCounter, s"Field ${p.name}#$id has a nullptr as name.")
 
-              val t = parseFieldType(in, types, String, Annotation, blockCounter)
+              val fieldType = parseFieldType(in, types, String, Annotation, blockCounter)
 
               // parse field restrictions
               var fieldRestrictionCount = in.v64.toInt
@@ -306,8 +307,12 @@ trait SkillFileParser[SF <: SkillState] {
 
                 rest += ((in.v64.toInt : @switch) match {
                   case 0 ⇒ restrictions.NonNull.theNonNull
-                  case 1 ⇒ restrictions.DefaultRestriction(t.read(in))
-                  case 3 ⇒ t match {
+                  case 1 ⇒
+                    if (5 == fieldType.typeID || fieldType.typeID >= 32)
+                      restrictions.DefaultRestriction(types(in.v64().toInt - 32).asInstanceOf[SingletonStoragePool[_, _]].get)
+                    else
+                      restrictions.DefaultRestriction(fieldType.read(in))
+                  case 3 ⇒ fieldType match {
                     case I8  ⇒ restrictions.Range(in.i8, in.i8)
                     case I16 ⇒ restrictions.Range(in.i16, in.i16)
                     case I32 ⇒ restrictions.Range(in.i32, in.i32)
@@ -332,7 +337,7 @@ trait SkillFileParser[SF <: SkillState] {
               }
               endOffset = in.v64
 
-              val f = p.addField(id, t, fieldName, rest)
+              val f = p.addField(id, fieldType, fieldName, rest)
               f.addChunk(new BulkChunk(dataEnd, endOffset, p.cachedSize, p.blocks.size))
             } else {
               // known field
