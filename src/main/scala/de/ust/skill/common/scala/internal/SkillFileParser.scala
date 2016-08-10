@@ -305,35 +305,45 @@ trait SkillFileParser[SF <: SkillState] {
               while (fieldRestrictionCount != 0) {
                 fieldRestrictionCount -= 1
 
-                rest += ((in.v64.toInt : @switch) match {
-                  case 0 ⇒ restrictions.NonNull.theNonNull
-                  case 1 ⇒
-                    if (5 == fieldType.typeID || fieldType.typeID >= 32)
-                      restrictions.DefaultRestriction(types(in.v64().toInt - 32).asInstanceOf[SingletonStoragePool[_, _]].get)
-                    else
-                      restrictions.DefaultRestriction(fieldType.read(in))
-                  case 3 ⇒ fieldType match {
-                    case I8  ⇒ restrictions.Range(in.i8, in.i8)
-                    case I16 ⇒ restrictions.Range(in.i16, in.i16)
-                    case I32 ⇒ restrictions.Range(in.i32, in.i32)
-                    case I64 ⇒ restrictions.Range(in.i64, in.i64)
-                    case V64 ⇒ restrictions.Range(in.v64, in.v64)
-                    case F32 ⇒ restrictions.Range(in.f32, in.f32)
-                    case F64 ⇒ restrictions.Range(in.f64, in.f64)
-                    case t   ⇒ throw new ParseException(in, blockCounter, s"Type $t can not be range restricted!", null)
-                  }
-                  case 5 ⇒ restrictions.Coding(String.get(in.v64.toInt))
-                  case 7 ⇒ restrictions.ConstantLengthPointer
-                  case 9 ⇒ restrictions.OneOf((0 until in.v64.toInt).map(i ⇒
-                    parseFieldType(in, types, String, Annotation, blockCounter) match {
-                      case t : StoragePool[_, _] ⇒ t.getInstanceClass
-                      case t ⇒ throw new ParseException(in, blockCounter,
-                        s"Found a one of restrictions that tries to restrict to non user type $t.", null)
-                    }).toArray
-                  )
-                  case i ⇒ throw new ParseException(in, blockCounter,
-                    s"Found unknown field restriction $i. Please regenerate your binding, if possible.", null)
-                })
+                case object Skip extends Exception;
+
+                try {
+                  rest += ((in.v64.toInt : @switch) match {
+                    case 0 ⇒ restrictions.NonNull.theNonNull
+                    case 1 ⇒
+                      if (5 == fieldType.typeID || fieldType.typeID >= 32)
+                        restrictions.DefaultRestriction(types(in.v64().toInt - 32) match {
+                          case p : SingletonStoragePool[_, _] ⇒ p.get
+                          case _                              ⇒ throw Skip // we cannot allocate the pool as it's not a static singleton
+                        })
+                      else
+                        restrictions.DefaultRestriction(fieldType.read(in))
+                        
+                    case 3 ⇒ fieldType match {
+                      case I8  ⇒ restrictions.Range(in.i8, in.i8)
+                      case I16 ⇒ restrictions.Range(in.i16, in.i16)
+                      case I32 ⇒ restrictions.Range(in.i32, in.i32)
+                      case I64 ⇒ restrictions.Range(in.i64, in.i64)
+                      case V64 ⇒ restrictions.Range(in.v64, in.v64)
+                      case F32 ⇒ restrictions.Range(in.f32, in.f32)
+                      case F64 ⇒ restrictions.Range(in.f64, in.f64)
+                      case t   ⇒ throw new ParseException(in, blockCounter, s"Type $t can not be range restricted!", null)
+                    }
+                    case 5 ⇒ restrictions.Coding(String.get(in.v64.toInt))
+                    case 7 ⇒ restrictions.ConstantLengthPointer
+                    case 9 ⇒ restrictions.OneOf((0 until in.v64.toInt).map(i ⇒
+                      parseFieldType(in, types, String, Annotation, blockCounter) match {
+                        case t : StoragePool[_, _] ⇒ t.getInstanceClass
+                        case t ⇒ throw new ParseException(in, blockCounter,
+                          s"Found a one of restrictions that tries to restrict to non user type $t.", null)
+                      }).toArray
+                    )
+                    case i ⇒ throw new ParseException(in, blockCounter,
+                      s"Found unknown field restriction $i. Please regenerate your binding, if possible.", null)
+                  })
+                } catch {
+                  case Skip ⇒ // skipped an exception
+                }
               }
               endOffset = in.v64
 

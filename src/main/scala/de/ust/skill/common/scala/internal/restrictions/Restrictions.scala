@@ -135,14 +135,23 @@ object Range {
 
   final case class RangeF32(min : Float, max : Float) extends CheckableFieldRestriction[Float](3) {
     override def check(value : Float) {
-      if (value < min || max < value) throw RestrictionCheckFailed(s"$value is not in Range($min, $max)")
+      if (min <= value && value <= max) {
+        return
+      }
+
+      throw RestrictionCheckFailed(s"$value is not in Range($min, $max)")
     }
   }
   def apply(min : Float, max : Float) = new RangeF32(min, max)
 
   final case class RangeF64(min : Double, max : Double) extends CheckableFieldRestriction[Double](3) {
     override def check(value : Double) {
-      if (value < min || max < value) throw RestrictionCheckFailed(s"$value is not in Range($min, $max)")
+      println(s"checking value: $value")
+      if (min <= value && value <= max) {
+        return
+      }
+
+      throw RestrictionCheckFailed(s"$value is not in Range($min, $max)")
     }
   }
   def apply(min : Double, max : Double) = new RangeF64(min, max)
