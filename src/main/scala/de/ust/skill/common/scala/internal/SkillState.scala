@@ -30,28 +30,28 @@ class SkillState(
   var path : Path,
 
   /**
-   *  current write mode
-   */
+ *  current write mode
+ */
   var mode : WriteMode,
 
   /**
-   * strings stored in this file
-   */
+ * strings stored in this file
+ */
   override val String : StringPool,
 
   /**
-   * annotation type used for annotations RTTI
-   */
+ * annotation type used for annotations RTTI
+ */
   protected[internal] val annotationType : fieldTypes.AnnotationType,
 
   /**
-   * types stored in this file
-   */
+ * types stored in this file
+ */
   protected[internal] val types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
 
   /**
-   * types by skill name
-   */
+ * types by skill name
+ */
   protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
     extends SkillFile {
 
@@ -113,7 +113,10 @@ class SkillState(
     // TODO lacks type restrictions
     // @note this should be more like, each pool is checking its type restriction, aggergating its field restrictions,
     // and if there are any, then they will all be checked using (hopefully) overridden check methods
-    for (p ← types.par; f ← p.dataFields) try { f.check } catch {
+    for (
+      p ← types.par if p.size > 0;
+      f ← p.dataFields
+    ) try { f.check } catch {
       case e : SkillException ⇒ throw RestrictionCheckFailed(s"check failed in ${p.name}.${f.name}:\n  ${e.getMessage}", e)
     }
   }

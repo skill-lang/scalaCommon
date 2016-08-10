@@ -42,7 +42,10 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
   def check {
     var rs = restrictions.collect { case r : CheckableFieldRestriction[T] ⇒ r }
     if (!rs.isEmpty)
-      owner.foreach { x ⇒ rs.foreach(_.check(x.get(this))) }
+      for (
+        x ← owner;
+        r ← rs
+      ) r.check(x.get(this))
   }
   /**
    * ensures existence of all known restrictions

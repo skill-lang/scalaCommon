@@ -146,7 +146,6 @@ object Range {
 
   final case class RangeF64(min : Double, max : Double) extends CheckableFieldRestriction[Double](3) {
     override def check(value : Double) {
-      println(s"checking value: $value")
       if (min <= value && value <= max) {
         return
       }

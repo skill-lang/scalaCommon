@@ -54,8 +54,10 @@ trait Access[T <: SkillObject] extends IndexedSeq[T] with FieldType[T] {
   def allFields : Iterator[FieldDeclaration[_]]
 
   override def length : Int
-  override def foreach[U](f : T ⇒ U) : Unit
-  override def toArray[B >: T : ClassTag] : Array[B]
+  final override def foreach[U](f : T ⇒ U) {
+    for (x ← all)
+      f(x)
+  }
 }
 
 trait StringAccess extends Iterable[String] with FieldType[String] {
