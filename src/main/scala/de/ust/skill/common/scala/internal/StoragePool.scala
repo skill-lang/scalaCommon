@@ -377,7 +377,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   }
 
   @inline
-  final def offset(target : T) : Long = V64.offset(target.skillID)
+  final def offset(target : T) : Long = if (null == target) 1 else V64.offset(target.skillID)
 
   @inline
   final def write(target : T, out : OutStream) : Unit = if (null == target) out.i8(0) else out.v64(target.skillID)

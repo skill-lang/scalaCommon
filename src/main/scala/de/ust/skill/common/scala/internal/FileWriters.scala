@@ -66,7 +66,7 @@ final object FileWriters {
   @inline
   private final def restrictions[T](f : FieldDeclaration[T, _], out : OutStream, state : SkillState) {
     out.v64(f.restrictions.size)
-    
+
     for (r ← f.restrictions) {
       out.v64(r.id)
       r match {
@@ -83,9 +83,9 @@ final object FileWriters {
         case RangeI64(l, h)               ⇒ out.v64(l); out.v64(h);
         case RangeF32(l, h)               ⇒ out.f32(l); out.f32(h);
         case RangeF64(l, h)               ⇒ out.f64(l); out.f64(h);
-        
+
         case Coding(s)                    ⇒ state.String.write(s, out)
-        
+
         case r : OneOf[SkillObject]       ⇒ r.types.foreach(c ⇒ out.v64(state.typesByName(c.getName.toLowerCase).typeID))
         case _                            ⇒ // epsilon 
       }
@@ -94,7 +94,11 @@ final object FileWriters {
 
   @inline
   private final def keepField(t : FieldType[_]) : Boolean = {
-    t.typeID < 15 || (t.typeID >= 32 && t.asInstanceOf[StoragePool[_, _]].cachedSize != 0) ||
+    t.typeID < 15 || (t.typeID >= 32 && (t match {
+      case t : StoragePool[_, _]   ⇒ t.cachedSize != 0
+      case t : InterfacePool[_, _] ⇒ t.superPool.cachedSize != 0
+      case _                       ⇒ false
+    })) ||
       (t match {
         case t : SingleBaseTypeContainer[_, _] ⇒ keepField(t.groundType)
         case t : MapType[_, _]                 ⇒ keepField(t.keyType) && keepField(t.valueType)
