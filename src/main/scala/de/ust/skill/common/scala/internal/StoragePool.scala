@@ -437,7 +437,7 @@ trait SingletonStoragePool[T <: B, B <: SkillObject] extends StoragePool[T, B] {
       while (i < last) {
         if (-1 == theInstance.skillID) {
           data(i) = theInstance
-          this.theInstance.skillID = i
+          this.theInstance.skillID = i + 1
           // instance is not a new object (it may have been accessed already)
           this.newObjects.clear()
         } else {

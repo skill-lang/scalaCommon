@@ -312,13 +312,10 @@ trait SkillFileParser[SF <: SkillState] {
                     case 0 ⇒ restrictions.NonNull.theNonNull
                     case 1 ⇒
                       if (5 == fieldType.typeID || fieldType.typeID >= 32)
-                        restrictions.DefaultRestriction(types(in.v64().toInt - 32) match {
-                          case p : SingletonStoragePool[_, _] ⇒ p.get
-                          case _                              ⇒ throw Skip // we cannot allocate the pool as it's not a static singleton
-                        })
+                        throw Skip // allocation of defaults seems to be broken
                       else
                         restrictions.DefaultRestriction(fieldType.read(in))
-                        
+
                     case 3 ⇒ fieldType match {
                       case I8  ⇒ restrictions.Range(in.i8, in.i8)
                       case I16 ⇒ restrictions.Range(in.i16, in.i16)
