@@ -14,6 +14,7 @@ import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 import de.ust.skill.common.scala.api.ClosureMode
 import de.ust.skill.common.scala.api.ClosureException
+import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
 
 /**
  * runtime representation of fields
@@ -39,14 +40,27 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
    */
   val restrictions = HashSet[FieldRestriction]();
   def addRestriction(r : FieldRestriction) = restrictions += r
-  def check {
-    var rs = restrictions.collect { case r : CheckableFieldRestriction[T] ⇒ r }
-    if (!rs.isEmpty)
-      for (
-        x ← owner;
-        r ← rs
-      ) r.check(x.get(this))
+  def check : Unit = {
+    if (restrictions.isEmpty) {
+      return
+    }
+
+    var rs = new ArrayBuffer[CheckableFieldRestriction[T]](restrictions.size)
+    var iter = restrictions.iterator
+    while (iter.hasNext) {
+      val r = iter.next()
+      if (r.isInstanceOf[CheckableFieldRestriction[T]])
+        rs += r.asInstanceOf[CheckableFieldRestriction[T]]
+    }
+
+    if (!rs.isEmpty) {
+      val xs = owner.all
+      while (xs.hasNext) {
+        rs.foreach(_.check(xs.next.get(this)))
+      }
+    }
   }
+
   /**
    * ensures existence of all known restrictions
    */
