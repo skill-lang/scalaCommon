@@ -35,6 +35,7 @@ import de.ust.skill.common.scala.internal.fieldTypes.MapType
 import de.ust.skill.common.scala.internal.fieldTypes.SetType
 import de.ust.skill.common.scala.internal.fieldTypes.V64
 import de.ust.skill.common.scala.internal.fieldTypes.VariableLengthArray
+import scala.annotation.tailrec
 
 /**
  * @author Timm Felden
@@ -225,15 +226,30 @@ trait SkillFileParser[SF <: SkillState] {
             0
           } else if (0 != count)
             in.v64().toInt
-          else
-            definition.superPool.blocks.last.bpo)
+          else {
+            val superBlock = definition.superPool.blocks.last
+            // surprisingly, the answer differs if the super block is not present in this block
+            if (superBlock.blockIndex == blockCounter)
+              definition.superPool.blocks.last.bpo
+            else
+              0
+          })
 
           // ensure that bpo is in fact inside of the parents block
           if (null != definition.superPool) {
-            val b = definition.superPool.blocks.last
-            if (lbpo < b.bpo || b.bpo + b.dynamicCount < lbpo)
-              throw new ParseException(in, blockCounter,
-                s"Found broken bpo: $lbpo not in [${b.bpo}; ${b.bpo + b.dynamicCount}[");
+            // check only, if there is a base block in the current block; otherwise, the value is implicit anyways
+            if (definition.basePool.blocks.last.blockIndex == blockCounter) {
+              val b = definition.superPool.blocks.last
+              if (lbpo < b.bpo || b.bpo + b.dynamicCount < lbpo) {
+                @tailrec
+                def superBPOs(p : StoragePool[_, _], init : String = "") : String = {
+                  if (p.superPool == null) init
+                  else superBPOs(p.superPool, s"$init ${p.name}: ${p.blocks.last.bpo} - ${p.blocks.last.bpo + p.blocks.last.dynamicCount}\n")
+                }
+                throw new ParseException(in, blockCounter,
+                  s"Type ${definition.name} has broken bpo: $lbpo not in [${b.bpo}; ${b.bpo + b.dynamicCount}[\n" + superBPOs(definition));
+              }
+            }
           }
 
           // static count and cached size are updated in the resize phase

@@ -299,7 +299,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   /**
    * called after a prepare append operation to write empty the new objects buffer and to set blocks correctly
    */
-  protected final def updateAfterPrepareAppend(chunkMap : Array[Array[Chunk]], lbpoMap : Array[Int]) {
+  protected final def updateAfterPrepareAppend(chunkMap : Array[Array[Chunk]], bpoMap : Array[Int]) {
     this.data = basePool.data
     val newInstances = newDynamicInstances.hasNext;
     val newPool = blocks.isEmpty;
@@ -312,9 +312,9 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
 
       // build block chunk
       val lcount = newDynamicInstancesSize
-      val lbpo = lbpoMap(poolIndex);
+      val bpo = bpoMap(poolIndex);
 
-      blocks.append(new Block(blocks.size, lbpo, newObjects.size, lcount));
+      blocks.append(new Block(blocks.size, bpo, newObjects.size, lcount));
 
       // @note: if this does not hold for p; then it will not hold for p.subPools either!
       if (newInstances || !newPool) {
@@ -325,7 +325,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
           val c = if (f.dataChunks.isEmpty) {
             new BulkChunk(-1, -1, size, blocks.size);
           } else if (newInstances) {
-            new SimpleChunk(-1, -1, lcount, lbpo);
+            new SimpleChunk(-1, -1, lcount, bpo);
           } else
             null
 
@@ -339,11 +339,12 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     // notify sub pools
     val subs = subPools.iterator
     while (subs.hasNext)
-      subs.next.updateAfterPrepareAppend(chunkMap, lbpoMap);
+      subs.next.updateAfterPrepareAppend(chunkMap, bpoMap);
 
     // remove new objects, because they are regular objects by now
     staticDataInstances += newObjects.size
-    newObjects = new ArrayBuffer[T]
+    if (newObjects.size != 0)
+      newObjects = new ArrayBuffer[T]
   }
 
   @inline
@@ -487,7 +488,7 @@ abstract class BasePool[B <: SkillObject](
     updateAfterCompress(lbpoMap)
   }
 
-  final def prepareAppend(chunkMap : Array[Array[Chunk]], lbpoMap : Array[Int]) {
+  final def prepareAppend(chunkMap : Array[Array[Chunk]], bpoMap : Array[Int]) {
 
     // fix this pool
     fix(true)
@@ -495,16 +496,18 @@ abstract class BasePool[B <: SkillObject](
     val newInstances = newDynamicInstances.hasNext
 
     // check if we have to append at all
-    if (!newInstances && !blocks.isEmpty && !dataFields.isEmpty && !dataFields.exists(_.dataChunks.isEmpty))
+    if (!newInstances && !blocks.isEmpty && !dataFields.isEmpty
+      && typeHierarchyIterator.forall(!_.dataFields.exists(_.dataChunks.isEmpty)))
       return ;
 
     // calculate our part of the lbpo map
     locally {
       val ts = typeHierarchyIterator
-      var next = data.length
+      // new objects will be appended after existing ones
+      var next = data.size
       while (ts.hasNext) {
         val p = ts.next
-        lbpoMap(p.poolIndex) = next
+        bpoMap(p.poolIndex) = next
         next += p.newObjects.size
       }
     }
@@ -523,7 +526,7 @@ abstract class BasePool[B <: SkillObject](
       }
       data = d;
     }
-    updateAfterPrepareAppend(chunkMap, lbpoMap);
+    updateAfterPrepareAppend(chunkMap, bpoMap);
   }
 }
 

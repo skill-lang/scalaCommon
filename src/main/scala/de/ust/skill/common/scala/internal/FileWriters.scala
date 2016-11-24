@@ -363,13 +363,13 @@ final object FileWriters {
 
     // make lbpsi map, update data map to contain dynamic instances and create serialization skill IDs for
     // serialization
-    // index → bpsi
-    val lbpoMap = new Array[Int](state.types.size);
+    // index → bpo
+    val bpoMap = new Array[Int](state.types.size);
     // poolOffset → fieldID → chunk
     val chunkMap = new Array[Array[Chunk]](state.types.size)
     state.types.par.foreach {
       case p : BasePool[_] ⇒
-        p.prepareAppend(chunkMap, lbpoMap)
+        p.prepareAppend(chunkMap, bpoMap)
       case _ ⇒
     }
 
@@ -378,14 +378,11 @@ final object FileWriters {
       if (p.typeID - 32 >= newPoolIndex)
         true
       // new instance or field?
-      else if (p.size > 0) {
+      else {
         val cm = chunkMap(p.poolIndex)
-        if (cm != null && p.dataFields.exists(f ⇒ null != cm(f.index)))
-          true
-        else
-          false
-      } else
-        false
+
+        p.size > 0 && cm != null && p.dataFields.exists(f ⇒ null != cm(f.index))
+      }
     }
 
     /**
@@ -464,10 +461,10 @@ final object FileWriters {
         } else {
           out.v64(p.superPool.typeID - 31);
           if (0 != count)
-            out.v64(lbpoMap(p.poolIndex));
+            out.v64(bpoMap(p.poolIndex) - bpoMap(p.basePool.poolIndex));
         }
       } else if (null != p.superPool && 0 != count) {
-        out.v64(lbpoMap(p.poolIndex) - lbpoMap(p.basePool.poolIndex));
+        out.v64(bpoMap(p.poolIndex) - bpoMap(p.basePool.poolIndex));
       }
 
       out.v64(fields);
