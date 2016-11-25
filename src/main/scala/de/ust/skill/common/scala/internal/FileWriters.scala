@@ -401,22 +401,23 @@ final object FileWriters {
     //////////////////////
     for (t ← rTypes) {
       strings.add(t.name)
-      for (f ← t.dataFields if keepField(f.t)) {
-        if (f.isInstanceOf[LazyField[_, _]]) f.asInstanceOf[LazyField[_, _]].ensureIsLoaded
+      for (f ← t.dataFields) {
         strings.add(f.name)
-        (f.t.typeID : @switch) match {
-          case 14 ⇒
-            for (x ← t)
-              strings.add(f.getR(x).asInstanceOf[String])
+        if (keepField(f.t)) {
+          (f.t.typeID : @switch) match {
+            case 14 ⇒
+              for (x ← t)
+                strings.add(f.getR(x).asInstanceOf[String])
 
-          case 15 | 17 | 18 | 19 if (f.t.asInstanceOf[SingleBaseTypeContainer[_, _]].groundType.typeID == 14) ⇒
-            t.foreach {
-              f.getR(_).asInstanceOf[Iterable[String]].foreach(strings.add)
-            }
+            case 15 | 17 | 18 | 19 if (f.t.asInstanceOf[SingleBaseTypeContainer[_, _]].groundType.typeID == 14) ⇒
+              t.foreach {
+                f.getR(_).asInstanceOf[Iterable[String]].foreach(strings.add)
+              }
 
-          // TODO maps
+            // TODO maps
 
-          case _ ⇒
+            case _ ⇒
+          }
         }
       }
     }
