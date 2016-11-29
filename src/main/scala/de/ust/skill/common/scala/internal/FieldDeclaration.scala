@@ -21,7 +21,7 @@ import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
  *
  * @author Timm Felden
  */
-sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
+abstract class FieldDeclaration[T, Obj <: SkillObject](
   final override val t : FieldType[T],
   final override val name : String,
   /**
@@ -112,11 +112,7 @@ sealed abstract class FieldDeclaration[T, Obj <: SkillObject](
 /**
  * This class marks known fields.
  */
-abstract class KnownField[T, Obj <: SkillObject](
-  _t : FieldType[T],
-  _name : String,
-  _index : Int,
-  _owner : StoragePool[Obj, _ >: Obj <: SkillObject]) extends FieldDeclaration[T, Obj](_t, _name, _index, _owner);
+trait KnownField[T, Obj <: SkillObject] extends FieldDeclaration[T, Obj];
 
 /**
  * This trait marks auto fields, i.e. fields that wont be touched by serialization.
@@ -127,7 +123,7 @@ abstract class AutoField[T, Obj <: SkillObject](
   _name : String,
   _index : Int,
   _owner : StoragePool[Obj, _ >: Obj <: SkillObject])
-    extends KnownField[T, Obj](_t, _name, _index, _owner) {
+    extends FieldDeclaration[T, Obj](_t, _name, _index, _owner) with KnownField[T, Obj] {
 
   final override def read(in : MappedInStream, target : Chunk) : Unit = throw new NoSuchMethodError("one can not read auto fields!")
   // auto fields do not contribute to closures
@@ -265,7 +261,7 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
  *
  * @note implementation abuses a distributed field that can be accessed iff there are no data chunks to be processed
  */
-final class LazyField[T : Manifest, Obj <: SkillObject](
+class LazyField[T : Manifest, Obj <: SkillObject](
   _t : FieldType[T],
   _name : String,
   _index : Int,
