@@ -230,7 +230,7 @@ trait SkillFileParser[SF <: SkillState] {
             val superBlock = definition.superPool.blocks.last
             // surprisingly, the answer differs if the super block is not present in this block
             if (superBlock.blockIndex == blockCounter)
-              definition.superPool.blocks.last.bpo
+              superBlock.bpo
             else
               0
           })
