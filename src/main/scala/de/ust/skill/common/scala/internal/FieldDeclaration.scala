@@ -1,20 +1,23 @@
 package de.ust.skill.common.scala.internal
 
 import java.nio.BufferUnderflowException
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
+import scala.collection.JavaConversions.asScalaIterator
+
 import de.ust.skill.common.jvm.streams.MappedInStream
 import de.ust.skill.common.jvm.streams.MappedOutStream
 import de.ust.skill.common.scala.api
+import de.ust.skill.common.scala.api.ClosureException
+import de.ust.skill.common.scala.api.ClosureMode
 import de.ust.skill.common.scala.api.PoolSizeMissmatchError
 import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.internal.fieldTypes.FieldType
 import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
-import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
-import de.ust.skill.common.scala.api.ClosureMode
-import de.ust.skill.common.scala.api.ClosureException
 import de.ust.skill.common.scala.internal.restrictions.CheckableFieldRestriction
+import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
 
 /**
  * runtime representation of fields
@@ -149,41 +152,53 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
 
   // data held as in storage pools
   // @note see paper notes for O(1) implementation
-  protected var data = new HashMap[Obj, T]() //Array[T]()
-  protected var newData = new HashMap[Obj, T]()
+  protected var data = new java.util.HashMap[Obj, T]() //Array[T]()
+  protected var newData = new java.util.HashMap[Obj, T]()
 
-  override def read(in : MappedInStream, lastChunk : Chunk) {
+  override def read(part : MappedInStream, target : Chunk) : Unit = this.synchronized {
     val d = owner.data.asInstanceOf[Array[Obj]]
+    val in = part.view(target.begin.toInt, target.end.toInt)
 
-    val firstPosition = in.position
     try {
-      lastChunk match {
+      target match {
         case c : SimpleChunk ⇒
-          val low = c.bpo.toInt
-          val high = (c.bpo + c.count).toInt
-          for (i ← low until high) {
-            data(d(i)) = t.read(in)
+          var i = c.bpo.toInt
+          val high = i + c.count
+          while (i != high) {
+            data.put(d(i), t.read(in))
+            i += 1
           }
         case bci : BulkChunk ⇒
-          for (
-            bi ← owner.blocks;
-            i ← bi.bpo.toInt until (bi.bpo + bi.dynamicCount).toInt
-          ) {
-            data(d(i)) = t.read(in)
+          val blocks = owner.blocks
+          var blockIndex = 0
+          while (blockIndex < bci.blockCount) {
+            val b = blocks(blockIndex)
+            blockIndex += 1
+            var i = b.bpo
+            val end = i + b.dynamicCount
+            while (i != end) {
+              data.put((d(i)), t.read(in))
+              i += 1
+            }
           }
       }
     } catch {
       case e : BufferUnderflowException ⇒
-        val lastPosition = in.position
-        throw PoolSizeMissmatchError(dataChunks.size - 1, lastChunk.begin, lastChunk.end, this, lastPosition)
+        throw new PoolSizeMissmatchError(dataChunks.size - 1,
+          part.position() + target.begin,
+          part.position() + target.end,
+          this, in.position())
     }
-    val lastPosition = in.position
-    if (lastPosition - firstPosition != lastChunk.end - lastChunk.begin)
-      throw PoolSizeMissmatchError(dataChunks.size - 1, lastChunk.begin, lastChunk.end, this, lastPosition)
+
+    if (!in.eof())
+      throw new PoolSizeMissmatchError(dataChunks.size - 1,
+        part.position() + target.begin,
+        part.position() + target.end,
+        this, in.position())
   }
   override def offset : Unit = {
     // compress data
-    data ++= newData
+    data.putAll(newData)
     newData.clear()
 
     val target = owner.data
@@ -193,7 +208,7 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
         var i = c.bpo.toInt
         val high = i + c.count
         while (i != high) {
-          result += t.offset(data(target(i).asInstanceOf[Obj]))
+          result += t.offset(data.get(target(i).asInstanceOf[Obj]))
           i += 1
         }
       case bci : BulkChunk ⇒
@@ -205,7 +220,7 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
           var i = b.bpo
           val end = i + b.dynamicCount
           while (i != end) {
-            result += t.offset(data(target(i).asInstanceOf[Obj]))
+            result += t.offset(data.get(target(i).asInstanceOf[Obj]))
             i += 1
           }
         }
@@ -220,7 +235,7 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
         var i = c.bpo.toInt
         val high = i + c.count
         while (i != high) {
-          t.write(data(target(i).asInstanceOf[Obj]), out)
+          t.write(data.get(target(i).asInstanceOf[Obj]), out)
           i += 1
         }
       case bci : BulkChunk ⇒
@@ -232,7 +247,7 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
           var i = b.bpo
           val end = i + b.dynamicCount
           while (i != end) {
-            t.write(data(target(i).asInstanceOf[Obj]), out)
+            t.write(data.get(target(i).asInstanceOf[Obj]), out)
             i += 1
           }
         }
@@ -241,18 +256,18 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
 
   override def getR(ref : SkillObject) : T = {
     if (-1 == ref.skillID)
-      return newData(ref.asInstanceOf[Obj])
+      return newData.get(ref)
     else
-      return data(ref.asInstanceOf[Obj])
+      return data.get(ref)
   }
   override def setR(ref : SkillObject, value : T) {
     if (-1 == ref.skillID)
       newData.put(ref.asInstanceOf[Obj], value)
     else
-      data(ref.asInstanceOf[Obj]) = value
+      data.put(ref.asInstanceOf[Obj], value)
   }
 
-  def iterator = data.iterator ++ newData.valuesIterator
+  def iterator = data.values().iterator() ++ newData.values.iterator()
 }
 
 /**
@@ -287,7 +302,7 @@ class LazyField[T : Manifest, Obj <: SkillObject](
             var i = c.bpo.toInt
             val high = i + c.count
             while (i != high) {
-              data(d(i)) = t.read(in)
+              data.put(d(i), t.read(in))
               i += 1
             }
           case bci : BulkChunk ⇒
@@ -299,7 +314,7 @@ class LazyField[T : Manifest, Obj <: SkillObject](
               var i = b.bpo
               val end = i + b.dynamicCount
               while (i != end) {
-                data(d(i)) = t.read(in)
+                data.put(d(i), t.read(in))
                 i += 1
               }
             }
@@ -338,23 +353,23 @@ class LazyField[T : Manifest, Obj <: SkillObject](
 
   override def getR(ref : SkillObject) : T = {
     if (-1 == ref.skillID)
-      return newData(ref.asInstanceOf[Obj])
+      return newData.get(ref.asInstanceOf[Obj])
 
     if (!isLoaded)
       load
 
-    return data(ref.asInstanceOf[Obj])
+    return data.get(ref.asInstanceOf[Obj])
   }
 
   override def setR(ref : SkillObject, v : T) {
     if (-1 == ref.skillID)
-      newData(ref.asInstanceOf[Obj]) = v
+      newData.put(ref.asInstanceOf[Obj], v)
     else {
 
       if (!isLoaded)
         load
 
-      return data(ref.asInstanceOf[Obj]) = v
+      data.put(ref.asInstanceOf[Obj], v)
     }
   }
 
