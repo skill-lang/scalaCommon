@@ -36,7 +36,7 @@ final class StringPool(val in : FileInputStream)
    * Furthermore, we can unify type and field names, thus we do not have to have duplicate names laying around,
    * improving the performance of hash containers and name checks:)
    */
-  private[internal] var knownStrings = new HashSet[String];
+  private var knownStrings = new HashSet[String];
 
   /**
    * ID ⇀ (absolute offset, length)
@@ -77,7 +77,7 @@ final class StringPool(val in : FileInputStream)
       if (null == result) {
         this.synchronized {
           // read result
-          val off = stringPositions(index.toInt)
+          val off = stringPositions(index)
           in.push(off.absoluteOffset)
           var chars = in.bytes(off.length)
           in.pop
@@ -86,7 +86,7 @@ final class StringPool(val in : FileInputStream)
           // ensure that the string is known
           knownStrings.add(result)
 
-          idMap(index.toInt) = result
+          idMap(index) = result
           result
         }
       } else
@@ -102,7 +102,9 @@ final class StringPool(val in : FileInputStream)
 
   override def closure(sf : SkillState, i : String, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
     // always add, write would add anyways
-    knownStrings.add(i)
+    if (null != i)
+      knownStrings.add(i)
+
     // cannot add new skill objects
     null
   }
