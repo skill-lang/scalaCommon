@@ -31,6 +31,11 @@ import de.ust.skill.common.scala.internal.restrictions.Range._
 final object FileWriters {
   @inline
   private final def writeType(t : FieldType[_], out : OutStream) {
+    if (t.isInstanceOf[InterfacePool[_, _]]) {
+      out.v64(t.asInstanceOf[InterfacePool[_, _]].superPool.typeID);
+      return ;
+    }
+
     out.v64(t.typeID)
 
     (t.typeID : @switch) match {

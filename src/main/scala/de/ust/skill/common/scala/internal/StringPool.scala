@@ -3,25 +3,17 @@ package de.ust.skill.common.scala.internal
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
+
 import de.ust.skill.common.jvm.streams.FileInputStream
 import de.ust.skill.common.jvm.streams.FileOutputStream
 import de.ust.skill.common.jvm.streams.InStream
-import de.ust.skill.common.jvm.streams.MappedOutStream
+import de.ust.skill.common.jvm.streams.OutStream
 import de.ust.skill.common.scala.SkillID
+import de.ust.skill.common.scala.api.ClosureMode
+import de.ust.skill.common.scala.api.SkillObject
 import de.ust.skill.common.scala.api.StringAccess
 import de.ust.skill.common.scala.internal.fieldTypes.StringType
-import java.nio.ByteBuffer
-import de.ust.skill.common.jvm.streams.OutStream
 import de.ust.skill.common.scala.internal.fieldTypes.V64
-import de.ust.skill.common.scala.api.NoClosure
-import de.ust.skill.common.scala.api.SkillException
-import de.ust.skill.common.scala.api.ClosureException
-import de.ust.skill.common.scala.api.ThrowException
-import de.ust.skill.common.scala.api.SkillObject
-import de.ust.skill.common.scala.api.ClosureMode
-import de.ust.skill.common.scala.api.ClosureException
-import de.ust.skill.common.scala.api.RecursiveInsert
-import de.ust.skill.common.scala.api.ReplaceByNull
 
 /**
  * @author Timm Felden
