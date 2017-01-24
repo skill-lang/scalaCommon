@@ -27,7 +27,17 @@ final class InterfacePool[T <: B, B <: SkillObject](
   def fields : Iterator[de.ust.skill.common.scala.api.FieldDeclaration[_]] = ???
   def allFields : Iterator[de.ust.skill.common.scala.api.FieldDeclaration[_]] = ???
 
-  def apply(index : Int) : T = superPool(index).asInstanceOf[T]
+  def apply(index : Int) : T = {
+    var idx = index
+    for (p ← realizations) {
+      val size = p.size
+      if (size > idx)
+        return p(idx)
+      else
+        idx -= size;
+    }
+    null.asInstanceOf[T]
+  }
 
   override def length : Int = realizations.map(_.length).reduce(_ + _)
 
@@ -64,7 +74,17 @@ final class UnrootedInterfacePool[T <: SkillObject](
   def fields : Iterator[de.ust.skill.common.scala.api.FieldDeclaration[_]] = ???
   def allFields : Iterator[de.ust.skill.common.scala.api.FieldDeclaration[_]] = ???
 
-  def apply(index : Int) : T = throw new NoSuchMethodError("One cannot access an unrooted interface by index. Forgot \".all\"? ")
+  def apply(index : Int) : T = {
+    var idx = index
+    for (p ← realizations) {
+      val size = p.size
+      if (size > idx)
+        return p(idx)
+      else
+        idx -= size;
+    }
+    null.asInstanceOf[T]
+  }
 
   override def length : Int = realizations.map(_.length).reduce(_ + _)
 
