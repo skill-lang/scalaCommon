@@ -28,7 +28,8 @@ final class StringPool(val in : FileInputStream)
    * Furthermore, we can unify type and field names, thus we do not have to have duplicate names laying around,
    * improving the performance of hash containers and name checks:)
    */
-  private var knownStrings = new HashSet[String];
+  private val knownStrings = new HashSet[String];
+  private val deletedStrings = new HashSet[String]
 
   /**
    * ID ⇀ (absolute offset, length)
@@ -54,9 +55,18 @@ final class StringPool(val in : FileInputStream)
    *
    * @note if result is null, nothing will happen and null will be returned
    */
-  def add(result : String) {
-    if (result != null)
+  override def add(result : String) {
+    if (result != null) {
       knownStrings.add(result)
+      deletedStrings.remove(result)
+    }
+  }
+
+  override def remove(target : String) {
+    if (target != null) {
+      knownStrings.remove(target)
+      deletedStrings.add(target)
+    }
   }
 
   /**
@@ -87,6 +97,7 @@ final class StringPool(val in : FileInputStream)
   }
 
   def iterator : Iterator[String] = knownStrings.iterator
+  override def size : Int = knownStrings.size
 
   def read(in : InStream) : String = get(in.v64.toInt)
 
@@ -120,28 +131,27 @@ final class StringPool(val in : FileInputStream)
       get(i)
       i -= 1
     }
-
-    // create inverse map
-    serializationIDs.clear()
-    i = idMap.length - 1
-    while (i != 0) {
-      serializationIDs(idMap(i)) = i
-      i -= 1
-    }
   }
 
   def prepareAndWrite(out : FileOutputStream) {
     prepareSerialization
+
+    // create inverse map
+    serializationIDs.clear()
+    idMap.clear()
+    idMap += null
+    
+    // removed deleted strings that were recreated via lazy loads
+    knownStrings --= deletedStrings
 
     // Insert new strings to the map;
     // this is where duplications with lazy strings will be detected and eliminated
     val ks = knownStrings.iterator
     while (ks.hasNext) {
       val s = ks.next
-      if (!serializationIDs.contains(s)) {
-        serializationIDs.put(s, idMap.size);
-        idMap += s
-      }
+
+      serializationIDs.put(s, idMap.size);
+      idMap += s
     }
 
     val count = idMap.length - 1
@@ -164,6 +174,14 @@ final class StringPool(val in : FileInputStream)
 
   def prepareAndAppend(out : FileOutputStream) {
     prepareSerialization
+
+    // create inverse map
+    serializationIDs.clear()
+    var i = idMap.length - 1
+    while (i != 0) {
+      serializationIDs(idMap(i)) = i
+      i -= 1
+    }
 
     val todo = new ArrayBuffer[Array[Byte]]
 

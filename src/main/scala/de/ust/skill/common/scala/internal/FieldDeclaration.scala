@@ -341,8 +341,13 @@ class LazyField[T : Manifest, Obj <: SkillObject](
    * ensures that the data has been loaded from disk
    */
   def ensureIsLoaded {
-    if (!isLoaded)
-      load
+    if (!isLoaded) {
+      // ensure that parallel access won't destroy the InStreams
+      this.synchronized {
+        if (!isLoaded)
+          load
+      }
+    }
   }
 
   override def read(part : MappedInStream, target : Chunk) {

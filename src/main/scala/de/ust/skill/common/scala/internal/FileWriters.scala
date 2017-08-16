@@ -24,6 +24,7 @@ import de.ust.skill.common.scala.internal.restrictions.Coding
 import de.ust.skill.common.scala.internal.restrictions.DefaultRestriction
 import de.ust.skill.common.scala.internal.restrictions.OneOf
 import de.ust.skill.common.scala.internal.restrictions.Range._
+import scala.collection.mutable.HashMap
 
 /**
  * Implementation of file writing and appending.
@@ -148,6 +149,22 @@ final object FileWriters {
     }
   }
 
+  private final def collectNestedStrings(strings : StringPool, t : MapType[_, _], xs : HashMap[_, _]) {
+    if (null != xs) {
+      if (t.keyType.typeID == 14)
+        for (s ← xs.keySet.asInstanceOf[Set[String]])
+          strings.add(s);
+
+      if (t.valueType.typeID == 14)
+        for (s ← xs.values.asInstanceOf[Iterable[String]])
+          strings.add(s);
+
+      if (t.valueType.typeID == 20)
+        for (x ← xs.values.asInstanceOf[Iterable[HashMap[_, _]]])
+          collectNestedStrings(strings, t.valueType.asInstanceOf[MapType[_, _]], x);
+    }
+  }
+
   @inline
   private final def writeFieldData(
     state : SkillState, out : FileOutputStream, offset : Int, fieldQueue : ArrayBuffer[FieldDeclaration[_, _]]) {
@@ -251,7 +268,35 @@ final object FileWriters {
                   f.getR(_).asInstanceOf[Iterable[String]].foreach(strings.add)
                 }
 
-              // TODO maps
+              case 20 ⇒
+                val ft = f.t.asInstanceOf[MapType[_, _]];
+                // simple maps
+                val k = ft.keyType.typeID == 14
+                val v = ft.valueType.typeID == 14
+                if (k || v) {
+
+                  for (i ← t) {
+                    val xs = i.get(f).asInstanceOf[HashMap[_, _]];
+                    if (null != xs) {
+                      if (k)
+                        for (s ← xs.keySet)
+                          strings.add(s.asInstanceOf[String]);
+                      if (v)
+                        for (s ← xs.values.asInstanceOf[Iterable[String]])
+                          strings.add(s);
+                    }
+                  }
+                }
+                // @note overlap is intended
+                // nested maps
+                if (ft.valueType.typeID == 20) {
+                  val nested = ft.valueType.asInstanceOf[MapType[_, _]];
+                  if (nested.keyType.typeID == 14 || nested.valueType.typeID == 14 || nested.valueType.typeID == 20) {
+                    for (i ← t) {
+                      collectNestedStrings(strings, nested, i.get(f).asInstanceOf[HashMap[_, _]]);
+                    }
+                  }
+                }
 
               case _ ⇒
             }
@@ -325,10 +370,20 @@ final object FileWriters {
 
     locally {
       val fs = fieldQueue.iterator
+      //we have to create new id's as, we may have dropped some fields
+      var writtenFieldID = -1;
+      var lastType : StoragePool[_, _] = null
       while (fs.hasNext) {
         val f = fs.next
+        if (f.owner != lastType) {
+          lastType = f.owner
+          writtenFieldID = 1
+        } else {
+          writtenFieldID += 1
+        }
+
         // write field info
-        out.v64(f.index)
+        out.v64(writtenFieldID)
         strings.write(f.name, out)
         writeType(f.t, out)
         restrictions(f, out, state)

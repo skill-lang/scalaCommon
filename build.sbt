@@ -2,7 +2,7 @@ name := "Scala Common"
 
 version := "0.9"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
 javacOptions ++= Seq("-encoding", "UTF-8")
 
