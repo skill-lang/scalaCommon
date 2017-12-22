@@ -26,10 +26,10 @@ import de.ust.skill.common.scala.api.TypeSystemError
  * @author Timm Felden
  */
 sealed abstract class StoragePool[T <: B, B <: SkillObject](
-  final val name : String,
+  final val name :      String,
   final val superPool : StoragePool[_ >: T <: B, B],
-  _typeID : Int)
-    extends UserType[T](_typeID) {
+  _typeID :             Int)
+  extends UserType[T](_typeID) {
 
   def getInstanceClass : Class[T]
 
@@ -186,8 +186,13 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     }
   }
 
+  /**
+   * the number of instances of exactly this type, excluding sub-types
+   *
+   * @return size excluding subtypes
+   */
   @inline
-  protected[internal] def staticSize : SkillID = {
+  def staticSize : SkillID = {
     staticDataInstances + newObjects.length
   }
 
@@ -223,10 +228,11 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
   /**
    * add a field to the pool, known fields are treated specially
    */
-  def addField[R : Manifest](fieldID : Int,
-                             t : FieldType[R],
-                             name : String,
-                             restrictions : HashSet[FieldRestriction]) : FieldDeclaration[R, T] = {
+  def addField[R : Manifest](
+    fieldID :      Int,
+    t :            FieldType[R],
+    name :         String,
+    restrictions : HashSet[FieldRestriction]) : FieldDeclaration[R, T] = {
     val f = new LazyField[R, T](t, name, fieldID, this);
     f.restrictions ++= restrictions
     dataFields.append(f);
@@ -247,9 +253,11 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
    */
   final var data : Array[B] = _
   /**
-   * a total function, that will either return the correct object or null
+   * a total function, that will either return the correct object or
+   * null
+   * @return the instance matching argument skill id
    */
-  @inline final private[internal] def getById(id : SkillID) : T = {
+  @inline final def getById(id : SkillID) : T = {
     if (id < 1 || data.length < id)
       null.asInstanceOf[T]
     else
@@ -452,8 +460,8 @@ trait SingletonStoragePool[T <: B, B <: SkillObject] extends StoragePool[T, B] {
 
 abstract class BasePool[B <: SkillObject](
   _typeID : Int,
-  _name : String)
-    extends StoragePool[B, B](_name, null, _typeID) {
+  _name :   String)
+  extends StoragePool[B, B](_name, null, _typeID) {
 
   protected[internal] var _owner : SkillState = _
   def owner : SkillState = _owner
@@ -531,10 +539,10 @@ abstract class BasePool[B <: SkillObject](
 }
 
 abstract class SubPool[T <: B, B <: SkillObject](
-  _typeID : Int,
-  _name : String,
+  _typeID :    Int,
+  _name :      String,
   _superPool : StoragePool[_ >: T <: B, B])
-    extends StoragePool[T, B](_name, _superPool, _typeID) {
+  extends StoragePool[T, B](_name, _superPool, _typeID) {
 
   final override def allocateData : Unit = this.data = basePool.data
 }
