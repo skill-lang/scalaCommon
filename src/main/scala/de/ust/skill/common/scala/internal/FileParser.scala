@@ -40,21 +40,24 @@ import scala.annotation.tailrec
 /**
  * @author Timm Felden
  */
-trait SkillFileParser[SF <: SkillState] {
+trait FileParser[SF <: SkillState] {
 
   def newPool(
-    typeId : Int,
-    name : String,
+    typeId :    Int,
+    name :      String,
     superPool : StoragePool[_ <: SkillObject, _ <: SkillObject],
-    rest : HashSet[restrictions.TypeRestriction]) : StoragePool[_ <: SkillObject, _ <: SkillObject]
+    rest :      HashSet[restrictions.TypeRestriction]
+  ) : StoragePool[_ <: SkillObject, _ <: SkillObject]
 
-  def makeState(path : Path,
-                mode : WriteMode,
-                String : StringPool,
-                Annotation : AnnotationType,
-                types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
-                typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]],
-                dataList : ArrayBuffer[MappedInStream]) : SF;
+  def makeState(
+    path :        Path,
+    mode :        WriteMode,
+    String :      StringPool,
+    Annotation :  AnnotationType,
+    types :       ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
+    typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]],
+    dataList :    ArrayBuffer[MappedInStream]
+  ) : SF;
 
   /**
    * Turns a field type into a preliminary type information. In case of user types, the declaration of the respective
@@ -62,11 +65,12 @@ trait SkillFileParser[SF <: SkillState] {
    */
   @inline
   private final def parseFieldType(
-    in : FileInputStream,
-    types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
-    String : StringPool,
-    Annotation : AnnotationType,
-    blockCounter : Int) : FieldType[_] = (in.v64.toInt : @switch) match {
+    in :           FileInputStream,
+    types :        ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
+    String :       StringPool,
+    Annotation :   AnnotationType,
+    blockCounter : Int
+  ) : FieldType[_] = (in.v64.toInt : @switch) match {
     case 0  ⇒ ConstantI8(in.i8)
     case 1  ⇒ ConstantI16(in.i16)
     case 2  ⇒ ConstantI32(in.i32)
@@ -149,7 +153,6 @@ trait SkillFileParser[SF <: SkillState] {
 
         // reset counters and queues
         seenTypes.clear
-        val resizeQueue = new ArrayBuffer[StoragePool[_, _]](typeCount)
 
         // number of fields to expect for that type in this block
         val localFields = new ArrayBuffer[LFEntry](typeCount)
@@ -257,15 +260,14 @@ trait SkillFileParser[SF <: SkillState] {
           definition.blocks.append(new Block(blockCounter, lbpo, count, count))
           definition.staticDataInstances += count
 
-          resizeQueue.append(definition)
           localFields.append(new LFEntry(definition, in.v64.toInt))
         }
 
         // resize pools, i.e. update cachedSize and staticCount
         locally {
-          val ps = resizeQueue.iterator
-          while (ps.hasNext) {
-            val p = ps.next
+          val es = localFields.iterator
+          while (es.hasNext) {
+            val p = es.next.pool
             val b = p.blocks.last
             p.cachedSize += b.dynamicCount
 
@@ -352,8 +354,7 @@ trait SkillFileParser[SF <: SkillState] {
                         case t : StoragePool[_, _] ⇒ t.getInstanceClass
                         case t ⇒ throw new ParseException(in, blockCounter,
                           s"Found a one of restrictions that tries to restrict to non user type $t.", null)
-                      }).toArray
-                    )
+                      }).toArray)
                     case i ⇒ throw new ParseException(in, blockCounter,
                       s"Found unknown field restriction $i. Please regenerate your binding, if possible.", null)
                   })
@@ -393,8 +394,9 @@ trait SkillFileParser[SF <: SkillState] {
    * has to be called by make state after instances have been allocated
    */
   final protected def triggerFieldDeserialization(
-    types : ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
-    dataList : ArrayBuffer[MappedInStream]) {
+    types :    ArrayBuffer[StoragePool[_ <: SkillObject, _ <: SkillObject]],
+    dataList : ArrayBuffer[MappedInStream]
+  ) {
     // read eager fields
     val errors = new ConcurrentLinkedQueue[Throwable]
     val barrier = new Barrier
@@ -431,11 +433,12 @@ trait SkillFileParser[SF <: SkillState] {
  * a read job for a given field, block and pool
  */
 final class Job(
-    val barrier : Barrier,
-    val field : FieldDeclaration[_, _],
-    val in : MappedInStream,
-    val target : Chunk,
-    val errors : ConcurrentLinkedQueue[Throwable]) extends Runnable {
+  val barrier : Barrier,
+  val field :   FieldDeclaration[_, _],
+  val in :      MappedInStream,
+  val target :  Chunk,
+  val errors :  ConcurrentLinkedQueue[Throwable]
+) extends Runnable {
 
   barrier.begin
 
