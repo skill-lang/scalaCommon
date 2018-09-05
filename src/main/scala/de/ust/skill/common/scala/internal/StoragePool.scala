@@ -285,7 +285,7 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
     blocks.clear()
     // pools without instances wont be written to disk
     if (0 != cachedSize) {
-      blocks.append(new Block(0, lbpoMap(poolIndex), staticSize, cachedSize))
+      blocks.append(new Block(0, lbpoMap(poolIndex), staticSize - deletedCount, cachedSize))
       val s = subPools.iterator
       while (s.hasNext)
         s.next.updateAfterCompress(lbpoMap)
@@ -299,8 +299,9 @@ sealed abstract class StoragePool[T <: B, B <: SkillObject](
         d.dataChunks += new BulkChunk(-1, -1, cachedSize, 1)
       }
 
-      staticDataInstances += newObjects.size
+      staticDataInstances += (newObjects.size - deletedCount)
       this.newObjects = new ArrayBuffer[T]()
+      this.deletedCount = 0
     }
   }
 

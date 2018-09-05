@@ -13,7 +13,7 @@ final class TypeOrderIterator[T <: B, B <: SkillObject](p : StoragePool[T, B]) e
     var r : StaticDataIterator[T] = null
     while (null == r && ts.hasNext) {
       val t = ts.next
-      if (t.staticSize != 0)
+      if (t.staticSize > t.deletedCount)
         r = new StaticDataIterator(t)
     }
     r
@@ -29,7 +29,7 @@ final class TypeOrderIterator[T <: B, B <: SkillObject](p : StoragePool[T, B]) e
       var r : StaticDataIterator[T] = null
       while (null == r && ts.hasNext) {
         val t = ts.next
-        if (t.staticSize != 0)
+        if (t.staticSize > t.deletedCount)
           r = new StaticDataIterator(t)
       }
       is = r
