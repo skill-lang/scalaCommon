@@ -2,6 +2,7 @@ package de.ust.skill.common.scala.internal
 
 import java.nio.file.Files
 import java.nio.file.Path
+import scala.annotation.switch
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import de.ust.skill.common.jvm.streams.FileOutputStream
@@ -19,6 +20,8 @@ import de.ust.skill.common.jvm.streams.FileInputStream
 import de.ust.skill.common.scala.api.ClosureMode
 import de.ust.skill.common.scala.api.NoClosure
 import de.ust.skill.common.scala.api.ThrowException
+import de.ust.skill.common.scala.internal.fieldTypes.SingleBaseTypeContainer
+import de.ust.skill.common.scala.internal.fieldTypes.MapType
 
 /**
  * @author Timm Felden
@@ -52,8 +55,9 @@ class SkillState(
   /**
  * types by skill name
  */
-  protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]])
-    extends SkillFile {
+  protected[internal] val typesByName : HashMap[String, StoragePool[_ <: SkillObject, _ <: SkillObject]]
+)
+  extends SkillFile {
 
   /**
    * a file input stream keeping the handle to a file for potential write operations
@@ -91,7 +95,8 @@ class SkillState(
     // write -> append
     if (Append == newMode)
       throw IllegalOperation(
-        "Cannot change write mode from Write to Append, try to use open(<path>, Create, Append) instead.");
+        "Cannot change write mode from Write to Append, try to use open(<path>, Create, Append) instead."
+      );
 
     mode = newMode
   }
@@ -130,6 +135,141 @@ class SkillState(
           f ← p.dataFields.par;
           if f.t.requiresClosure
         ) f.closure(this, ThrowException)
+    }
+  }
+
+  def compress {
+    if (Append == mode) {
+      throw new IllegalStateException("compress cannot be performed on a state with append mode. Change mode to write first.")
+    }
+
+    // fix pools to make size operations constant time (happens in amortized constant time)
+    {
+      val ts = types.iterator
+      while (ts.hasNext)
+        ts.next.fix(true)
+    }
+
+    // find relevant types and fields
+    val (rTypes, irrTypes) = types.partition(0 != _.cachedSize)
+    val fieldQueue = new ArrayBuffer[FieldDeclaration[_, _]]
+
+    // reorder types and assign new IDs
+    if (!irrTypes.isEmpty) {
+      var nextID = 32
+      types.clear
+      locally {
+        val ts = rTypes.iterator
+        while (ts.hasNext) {
+          val t = ts.next
+          t.typeID = nextID
+          nextID += 1
+          types += t
+        }
+      }
+      locally {
+        val ts = irrTypes.iterator
+        while (ts.hasNext) {
+          val t = ts.next
+          t.typeID = nextID
+          nextID += 1
+          types += t
+        }
+      }
+    }
+
+    /**
+     *  collect String instances from known string types; this is required,
+     * because we use plain strings
+     * @note this is a O(σ) operation:)
+     * @note we do not use generation time type info, because we want to treat
+     * generic fields as well
+     *
+     * @todo unify type and field names in string pool, so that it is no longer required to add them here (and
+     * checks/searches should be faster that way)
+     */
+    val strings = String
+
+    // PHASE 1: Collect
+
+    locally {
+      val ts = rTypes.iterator
+      while (ts.hasNext) {
+        val t = ts.next
+        strings.add(t.name)
+
+        val fs = t.dataFields.iterator
+        while (fs.hasNext) {
+          val f = fs.next
+          if (FileWriters.keepField(f.t)) {
+            if (f.isInstanceOf[LazyField[_, _]]) f.asInstanceOf[LazyField[_, _]].ensureIsLoaded
+
+            fieldQueue.append(f)
+            strings.add(f.name)
+            (f.t.typeID : @switch) match {
+              case 14 ⇒
+                for (x ← t)
+                  strings.add(f.getR(x).asInstanceOf[String])
+
+              case 15 | 17 | 18 | 19 if (f.t.asInstanceOf[SingleBaseTypeContainer[_, _]].groundType.typeID == 14) ⇒
+                t.foreach {
+                  f.getR(_).asInstanceOf[Iterable[String]].foreach(strings.add)
+                }
+
+              case 20 ⇒
+                val ft = f.t.asInstanceOf[MapType[_, _]];
+                // simple maps
+                val k = ft.keyType.typeID == 14
+                val v = ft.valueType.typeID == 14
+                if (k || v) {
+
+                  for (i ← t) {
+                    val xs = i.get(f).asInstanceOf[HashMap[_, _]];
+                    if (null != xs) {
+                      if (k)
+                        for (s ← xs.keySet)
+                          strings.add(s.asInstanceOf[String]);
+                      if (v)
+                        for (s ← xs.values.asInstanceOf[Iterable[String]])
+                          strings.add(s);
+                    }
+                  }
+                }
+                // @note overlap is intended
+                // nested maps
+                if (ft.valueType.typeID == 20) {
+                  val nested = ft.valueType.asInstanceOf[MapType[_, _]];
+                  if (nested.keyType.typeID == 14 || nested.valueType.typeID == 14 || nested.valueType.typeID == 20) {
+                    for (i ← t) {
+                      FileWriters.collectNestedStrings(strings, nested, i.get(f).asInstanceOf[HashMap[_, _]]);
+                    }
+                  }
+                }
+
+              case _ ⇒
+            }
+          }
+        }
+      }
+    }
+
+    // PHASE 2: Reorder
+
+    // index → bpo
+    //  @note pools.par would not be possible if it were an actual
+    val lbpoMap = new Array[Int](types.size)
+
+    types.par.foreach {
+      case p : BasePool[_] ⇒
+        p.compress(lbpoMap)
+      case _ ⇒
+    }
+
+    // unfix pools
+    {
+      val ts = types.iterator
+      while (ts.hasNext)
+        ts.next.fix(false)
     }
   }
 

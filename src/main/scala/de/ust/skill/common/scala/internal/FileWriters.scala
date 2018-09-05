@@ -1,8 +1,8 @@
 package de.ust.skill.common.scala.internal
 
 import scala.annotation.switch
-import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
 import scala.concurrent.ExecutionContext.global
 import scala.language.existentials
 
@@ -16,15 +16,8 @@ import de.ust.skill.common.scala.internal.fieldTypes.ConstantI8
 import de.ust.skill.common.scala.internal.fieldTypes.ConstantLengthArray
 import de.ust.skill.common.scala.internal.fieldTypes.ConstantV64
 import de.ust.skill.common.scala.internal.fieldTypes.FieldType
-import de.ust.skill.common.scala.internal.fieldTypes.I64
-import de.ust.skill.common.scala.internal.fieldTypes.MapType
 import de.ust.skill.common.scala.internal.fieldTypes.MapType
 import de.ust.skill.common.scala.internal.fieldTypes.SingleBaseTypeContainer
-import de.ust.skill.common.scala.internal.restrictions.Coding
-import de.ust.skill.common.scala.internal.restrictions.DefaultRestriction
-import de.ust.skill.common.scala.internal.restrictions.OneOf
-import de.ust.skill.common.scala.internal.restrictions.Range._
-import scala.collection.mutable.HashMap
 
 /**
  * Implementation of file writing and appending.
@@ -100,7 +93,7 @@ final object FileWriters {
   }
 
   @inline
-  private final def keepField(t : FieldType[_]) : Boolean = {
+  final def keepField(t : FieldType[_]) : Boolean = {
     t.typeID < 15 || (t.typeID >= 32 && (t match {
       case t : StoragePool[_, _]   ⇒ t.cachedSize != 0
       case t : InterfacePool[_, _] ⇒ t.superPool.cachedSize != 0
@@ -149,7 +142,7 @@ final object FileWriters {
     }
   }
 
-  private final def collectNestedStrings(strings : StringPool, t : MapType[_, _], xs : HashMap[_, _]) {
+  final def collectNestedStrings(strings : StringPool, t : MapType[_, _], xs : HashMap[_, _]) {
     if (null != xs) {
       if (t.keyType.typeID == 14)
         for (s ← xs.keySet.asInstanceOf[Set[String]])
