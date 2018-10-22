@@ -87,7 +87,7 @@ final object FileWriters {
     //        case Coding(s)                    ⇒ state.String.write(s, out)
     //
     //        case r : OneOf[SkillObject]       ⇒ r.types.foreach(c ⇒ out.v64(state.typesByName(c.getName.toLowerCase).typeID))
-    //        case _                            ⇒ // epsilon 
+    //        case _                            ⇒ // epsilon
     //      }
     //    }
   }
@@ -160,7 +160,8 @@ final object FileWriters {
 
   @inline
   private final def writeFieldData(
-    state : SkillState, out : FileOutputStream, offset : Int, fieldQueue : ArrayBuffer[FieldDeclaration[_, _]]) {
+    state : SkillState, out : FileOutputStream, offset : Int, fieldQueue : ArrayBuffer[FieldDeclaration[_, _]]
+  ) {
     // map field data
     val map = out.mapBlock(offset)
 
@@ -285,8 +286,8 @@ final object FileWriters {
                 if (ft.valueType.typeID == 20) {
                   val nested = ft.valueType.asInstanceOf[MapType[_, _]];
                   if (nested.keyType.typeID == 14 || nested.valueType.typeID == 14 || nested.valueType.typeID == 20) {
-                    for (i ← t) {
-                      collectNestedStrings(strings, nested, i.get(f).asInstanceOf[HashMap[_, _]]);
+                    for (i ← t; n ← i.get(f).asInstanceOf[HashMap[_, _]].values) {
+                      collectNestedStrings(strings, nested, n.asInstanceOf[HashMap[_, _]]);
                     }
                   }
                 }
@@ -412,7 +413,7 @@ final object FileWriters {
     //////////////////////////////
 
     // @note: I know that phase 2 happens before phase 1 ;)
-    // we implement it that way to keep 
+    // we implement it that way to keep
 
     // make lbpsi map, update data map to contain dynamic instances and create serialization skill IDs for
     // serialization
