@@ -25,14 +25,15 @@ import de.ust.skill.common.scala.internal.restrictions.FieldRestriction
  * @author Timm Felden
  */
 abstract class FieldDeclaration[T, Obj <: SkillObject](
-  final override val t : FieldType[T],
+  final override val t :    FieldType[T],
   final override val name : String,
   /**
  * index of the field inside of dataFields; this may change, if fields get reordered by a write operation
  */
   protected[internal] final var index : Int,
-  final val owner : StoragePool[Obj, _ >: Obj <: SkillObject])
-    extends api.FieldDeclaration[T] {
+  final val owner :                     StoragePool[Obj, _ >: Obj <: SkillObject]
+)
+  extends api.FieldDeclaration[T] {
 
   protected[internal] final val dataChunks = new ArrayBuffer[Chunk]
 
@@ -83,7 +84,8 @@ abstract class FieldDeclaration[T, Obj <: SkillObject](
   protected[internal] def closure(sf : SkillState, mode : ClosureMode) : ArrayBuffer[SkillObject] = {
     for (i ← owner) {
       try {
-        t.closure(sf, getR(i), mode)
+        if (0 != i.skillID)
+          t.closure(sf, getR(i), mode)
       } catch {
         case e : ClosureException ⇒ throw new ClosureException(s"in ${owner.name}.${name} @$i", e)
       }
@@ -122,11 +124,12 @@ trait KnownField[T, Obj <: SkillObject] extends FieldDeclaration[T, Obj];
  * @note an auto field must be known
  */
 abstract class AutoField[T, Obj <: SkillObject](
-  _t : FieldType[T],
-  _name : String,
+  _t :     FieldType[T],
+  _name :  String,
   _index : Int,
-  _owner : StoragePool[Obj, _ >: Obj <: SkillObject])
-    extends FieldDeclaration[T, Obj](_t, _name, _index, _owner) with KnownField[T, Obj] {
+  _owner : StoragePool[Obj, _ >: Obj <: SkillObject]
+)
+  extends FieldDeclaration[T, Obj](_t, _name, _index, _owner) with KnownField[T, Obj] {
 
   final override def read(in : MappedInStream, target : Chunk) : Unit = throw new NoSuchMethodError("one can not read auto fields!")
   // auto fields do not contribute to closures
@@ -144,11 +147,12 @@ trait IgnoredField[T, Obj <: SkillObject] extends KnownField[T, Obj];
  * The fields data is distributed into an array (for now its a hash map) holding its instances.
  */
 class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Long, Short) T : Manifest, Obj <: SkillObject](
-  _t : FieldType[T],
-  _name : String,
+  _t :     FieldType[T],
+  _name :  String,
   _index : Int,
-  _owner : StoragePool[Obj, _ >: Obj <: SkillObject])
-    extends FieldDeclaration[T, Obj](_t, _name, _index, _owner) {
+  _owner : StoragePool[Obj, _ >: Obj <: SkillObject]
+)
+  extends FieldDeclaration[T, Obj](_t, _name, _index, _owner) {
 
   // data held as in storage pools
   // @note see paper notes for O(1) implementation
@@ -184,17 +188,21 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
       }
     } catch {
       case e : BufferUnderflowException ⇒
-        throw new PoolSizeMissmatchError(dataChunks.size - 1,
+        throw new PoolSizeMissmatchError(
+          dataChunks.size - 1,
           part.position() + target.begin,
           part.position() + target.end,
-          this, in.position())
+          this, in.position()
+        )
     }
 
     if (!in.eof())
-      throw new PoolSizeMissmatchError(dataChunks.size - 1,
+      throw new PoolSizeMissmatchError(
+        dataChunks.size - 1,
         part.position() + target.begin,
         part.position() + target.end,
-        this, in.position())
+        this, in.position()
+      )
   }
   override def offset : Unit = {
     // compress data
@@ -277,11 +285,12 @@ class DistributedField[@specialized(Boolean, Byte, Char, Double, Float, Int, Lon
  * @note implementation abuses a distributed field that can be accessed iff there are no data chunks to be processed
  */
 class LazyField[T : Manifest, Obj <: SkillObject](
-  _t : FieldType[T],
-  _name : String,
+  _t :     FieldType[T],
+  _name :  String,
   _index : Int,
-  _owner : StoragePool[Obj, _ >: Obj <: SkillObject])
-    extends DistributedField[T, Obj](_t, _name, _index, _owner) {
+  _owner : StoragePool[Obj, _ >: Obj <: SkillObject]
+)
+  extends DistributedField[T, Obj](_t, _name, _index, _owner) {
 
   // pending parts that have to be loaded
   private var parts = new HashMap[Chunk, MappedInStream]
@@ -325,14 +334,16 @@ class LazyField[T : Manifest, Obj <: SkillObject](
           throw new PoolSizeMissmatchError(
             dataChunks.size - parts.size,
             parts(chunk).position() + chunk.begin,
-            parts(chunk).position() + chunk.end, this, lastPosition)
+            parts(chunk).position() + chunk.end, this, lastPosition
+          )
       }
       if (in.asByteBuffer().remaining() != 0)
         throw new PoolSizeMissmatchError(
           dataChunks.size - parts.size,
           parts(chunk).position() + chunk.begin,
           parts(chunk).position() + chunk.end,
-          this, in.position())
+          this, in.position()
+        )
     }
     parts = null
   }
